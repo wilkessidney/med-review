@@ -1,6 +1,7 @@
+import type { Subject } from "../types";
+
 /* 生理学 — 数据文件（全局变量，兼容 file:// 与 GitHub Pages） */
-window.SUBJECTS = window.SUBJECTS || {};
-window.SUBJECTS.physiol = {
+export const physiol: Subject = {
   id: "physiol",
   name: "生理学",
   chapters: [

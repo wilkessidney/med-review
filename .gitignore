@@ -6,3 +6,13 @@
 
 # 本地临时
 *.log
+
+# 依赖与构建产物
+node_modules/
+dist/
+
+# 旧版备份与 demo
+backup/
+
+# WorkBuddy 本地记忆（项目级，不应进版本库）
+.workbuddy/

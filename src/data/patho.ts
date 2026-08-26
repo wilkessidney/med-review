@@ -1,6 +1,7 @@
+import type { Subject } from "../types";
+
 /* 病理学 — 数据文件（全局变量，兼容 file:// 与 GitHub Pages） */
-window.SUBJECTS = window.SUBJECTS || {};
-window.SUBJECTS.patho = {
+export const patho: Subject = {
   id: "patho",
   name: "病理学",
   chapters: [

@@ -4,7 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>医学应试复习系统 · 生化/生理/病理/内科/外科</title>
-<link rel="stylesheet" href="assets/styles.css">
 </head>
 <body>
 <header class="topbar">
@@ -24,7 +23,6 @@
 </header>
 
 <div class="layout">
-  <!-- 侧边：章节与知识点 -->
   <aside class="sidebar" id="sidebar">
     <div class="side-head">
       <span id="sideTitle">章节</span>
@@ -36,19 +34,12 @@
   <main class="content" id="content"></main>
 </div>
 
-<!-- 移动端底栏 -->
 <nav class="mobilebar">
   <button data-mode="browse">浏览</button>
   <button data-mode="review">复习</button>
   <button id="mbMenu">目录</button>
 </nav>
 
-<!-- 数据文件（全局变量，兼容 file:// 与 GitHub Pages） -->
-<script src="data/biochem.js"></script>
-<script src="data/physiol.js"></script>
-<script src="data/patho.js"></script>
-<script src="data/internal.js"></script>
-<script src="data/surgery.js"></script>
-<script src="assets/app.js"></script>
+<script type="module" src="/src/main.ts"></script>
 </body>
 </html>
