@@ -1,0 +1,8 @@
+# macOS AppleDouble 冗余文件
+._*
+.DS_Store
+.Spotlight-V100
+.Trashes
+
+# 本地临时
+*.log

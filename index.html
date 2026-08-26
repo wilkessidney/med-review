@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>医学应试复习系统 · 生化/生理/病理/内科/外科</title>
+<link rel="stylesheet" href="assets/styles.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">📚 医学应试复习系统</div>
+  <nav class="subjects" id="subjectTabs"></nav>
+  <div class="modes">
+    <button class="mode active" data-mode="browse">浏览</button>
+    <button class="mode" data-mode="review">复习</button>
+    <button class="mode mode-edit" data-mode="edit">编辑</button>
+    <span class="stat" id="statBadge"></span>
+  </div>
+</header>
+
+<div class="layout">
+  <!-- 侧边：章节与知识点 -->
+  <aside class="sidebar" id="sidebar">
+    <div class="side-head">
+      <span id="sideTitle">章节</span>
+      <button class="mini" id="sideToggle">收起</button>
+    </div>
+    <div class="tree" id="tree"></div>
+  </aside>
+
+  <main class="content" id="content"></main>
+</div>
+
+<!-- 移动端底栏 -->
+<nav class="mobilebar">
+  <button data-mode="browse">浏览</button>
+  <button data-mode="review">复习</button>
+  <button id="mbMenu">目录</button>
+</nav>
+
+<!-- 数据文件（全局变量，兼容 file:// 与 GitHub Pages） -->
+<script src="data/biochem.js"></script>
+<script src="data/physiol.js"></script>
+<script src="data/patho.js"></script>
+<script src="data/internal.js"></script>
+<script src="data/surgery.js"></script>
+<script src="assets/app.js"></script>
+</body>
+</html>
