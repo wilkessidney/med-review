@@ -88,6 +88,69 @@
     return Math.round((ts - Date.now()) / 86400000);
   }
 
+  /* ---------- 轻量 Markdown 渲染（先转义，再套有限标记，防 XSS） ----------
+   * 支持：段落 / 换行、- 或 • 无序列表、1. 有序列表、| 表格 |、> 提示块、
+   *      ## 小标题、**加粗**、`行内代码`
+   * 目的：让单个维度能承载教科书级篇幅（分层要点 + 对比表）而仍然可读。
+   */
+  function mdInline(t) {
+    return esc(t)
+      .replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>")
+      .replace(/`([^`]+)`/g, "<code>$1</code>");
+  }
+  function isTable(l) { return /^\s*\|.*\|\s*$/.test(l); }
+  function isUl(l) { return /^\s*[-•]\s+/.test(l); }
+  function isOl(l) { return /^\s*\d+[.、)]\s+/.test(l); }
+  function isNote(l) { return /^\s*>\s?/.test(l); }
+  function isHead(l) { return /^\s*#{2,4}\s+/.test(l); }
+  function mdHTML(src) {
+    const lines = String(src == null ? "" : src).replace(/\r/g, "").split("\n");
+    const out = [];
+    let i = 0;
+    while (i < lines.length) {
+      const ln = lines[i];
+      if (/^\s*$/.test(ln)) { i++; continue; }
+      if (isTable(ln)) {
+        const rows = [];
+        while (i < lines.length && isTable(lines[i])) { rows.push(lines[i]); i++; }
+        const cells = r => r.trim().replace(/^\|/, "").replace(/\|$/, "").split("|").map(s => s.trim());
+        let head = null; const body = [];
+        rows.forEach((r, idx) => {
+          const c = cells(r);
+          if (idx === 1 && c.length && c.every(x => /^:?-{2,}:?$/.test(x))) return;
+          if (idx === 0) head = c; else body.push(c);
+        });
+        let t = '<table class="md-t">';
+        if (head) t += "<thead><tr>" + head.map(c => `<th>${mdInline(c)}</th>`).join("") + "</tr></thead>";
+        t += "<tbody>" + body.map(r => "<tr>" + r.map(c => `<td>${mdInline(c)}</td>`).join("") + "</tr>").join("") + "</tbody></table>";
+        out.push(t); continue;
+      }
+      if (isUl(ln)) {
+        const it = [];
+        while (i < lines.length && isUl(lines[i])) { it.push(lines[i].replace(/^\s*[-•]\s+/, "")); i++; }
+        out.push('<ul class="md-ul">' + it.map(x => `<li>${mdInline(x)}</li>`).join("") + "</ul>"); continue;
+      }
+      if (isOl(ln)) {
+        const it = [];
+        while (i < lines.length && isOl(lines[i])) { it.push(lines[i].replace(/^\s*\d+[.、)]\s+/, "")); i++; }
+        out.push('<ol class="md-ol">' + it.map(x => `<li>${mdInline(x)}</li>`).join("") + "</ol>"); continue;
+      }
+      if (isNote(ln)) {
+        const buf = [];
+        while (i < lines.length && isNote(lines[i])) { buf.push(lines[i].replace(/^\s*>\s?/, "")); i++; }
+        out.push('<div class="md-note">' + buf.map(mdInline).join("<br>") + "</div>"); continue;
+      }
+      if (isHead(ln)) {
+        out.push('<div class="md-h">' + mdInline(ln.replace(/^\s*#{2,4}\s+/, "")) + "</div>"); i++; continue;
+      }
+      const buf = [];
+      while (i < lines.length && !/^\s*$/.test(lines[i]) && !isTable(lines[i]) && !isUl(lines[i])
+             && !isOl(lines[i]) && !isNote(lines[i]) && !isHead(lines[i])) { buf.push(lines[i]); i++; }
+      out.push('<p class="md-p">' + buf.map(mdInline).join("<br>") + "</p>");
+    }
+    return out.join("");
+  }
+
   /* ---------- 全局状态 ---------- */
   const App = { subject: null, chapterId: null, pointId: null, mode: "browse", reviewFilter: "due", reviewIdx: 0, reviewQueue: [] };
 
@@ -121,6 +184,7 @@
     renderSubjects();
     renderTree();
     renderMode();
+    if (window.innerWidth <= 768) document.getElementById("sidebar").classList.remove("open");
   }
 
   /* ---------- 渲染：侧边树 ---------- */
@@ -139,6 +203,7 @@
         if (ch.points && ch.points[0]) { App.pointId = ch.points[0].id; }
         else { App.pointId = null; }
         renderTree(); renderMode();
+        if (window.innerWidth <= 768) document.getElementById("sidebar").classList.remove("open");
       };
       wrap.appendChild(head);
       if (ch.points) {
@@ -150,7 +215,12 @@
           if (st.weak) badge = `<span class="badge weak">薄</span>`;
           else if (!st.lastReview || (st.nextReview && st.nextReview <= Date.now())) badge = `<span class="badge">待</span>`;
           el.innerHTML = esc(p.title) + badge;
-          el.onclick = () => { App.pointId = p.id; renderTree(); renderMode(); };
+          el.onclick = () => {
+          App.chapterId = ch.id;
+          App.pointId = p.id;
+          renderTree(); renderMode();
+          if (window.innerWidth <= 768) document.getElementById("sidebar").classList.remove("open");
+        };
           wrap.appendChild(el);
         });
       }
@@ -163,8 +233,9 @@
   function dimHTML(d, value, isState) {
     const cls = isState ? "num s" : "num";
     const lab = isState ? "lab s" : "lab";
-    const empty = (value == null || value === "") ? " empty" : "";
-    const shown = (value == null || value === "") ? "待补充" : esc(value);
+    const isEmpty = (value == null || value === "");
+    const empty = isEmpty ? " empty" : " md";
+    const shown = isEmpty ? "待补充" : mdHTML(value);
     return `<div class="dim"><div class="${cls}">${d.n}</div><div class="body">
       <div class="${lab}">${d.t}</div><div class="val${empty}">${shown}</div></div></div>`;
   }
@@ -203,11 +274,23 @@
       let inner = "";
       dims.forEach(d => { inner += dimHTML(d, pointValue(p, d, App.subject, p.id), d.state); });
       const color = g.id === "薄弱" ? "var(--amber)" : (g.id === "错误" ? "var(--red)" : "var(--brand)");
-      html += `<div class="group"><div class="group-head">
+      html += `<div class="group" data-g="${esc(g.id)}"><div class="group-head">
+        <span class="fold">▾</span>
         <span class="gn" style="color:${color}">${esc(g.name)}</span>
         <span class="gs">${esc(g.sub)}</span><span class="bar"></span></div>${inner}</div>`;
     });
     c.innerHTML = html;
+    // 教科书级篇幅下页面很长：分组标题可点击折叠/展开
+    Array.prototype.forEach.call(c.querySelectorAll(".group"), gEl => {
+      const head = gEl.querySelector(".group-head");
+      if (!head) return;
+      head.style.cursor = "pointer";
+      head.onclick = () => {
+        const folded = gEl.classList.toggle("folded");
+        const f = gEl.querySelector(".fold");
+        if (f) f.textContent = folded ? "▸" : "▾";
+      };
+    });
   }
 
   /* ---------- 复习模式 ---------- */
@@ -422,6 +505,49 @@
     a.click();
   }
 
+  /* ---------- 复习进度导出 / 导入（手机 ↔ 电脑同步，兼容 file://） ---------- */
+  function exportProgress() {
+    const raw = store.get(SKEY);
+    if (!raw) { alert("当前没有可导出的复习进度。"); return; }
+    let obj;
+    try { obj = JSON.parse(raw); } catch (e) { alert("本地进度数据损坏，无法导出。"); return; }
+    const d = new Date();
+    const pad = n => (n < 10 ? "0" + n : "" + n);
+    const payload = { type: "medreview_state_v1", exportedAt: Date.now(), data: obj };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "medreview-progress-" + d.getFullYear() + pad(d.getMonth() + 1) + pad(d.getDate()) + ".json";
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  }
+  function importProgress(file) {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function () {
+      const text = reader.result;
+      if (typeof text !== "string") { alert("文件读取失败。"); return; }
+      let parsed;
+      try { parsed = JSON.parse(text); } catch (e) { alert("文件不是有效的 JSON，导入失败。"); return; }
+      let state;
+      if (parsed && parsed.type === "medreview_state_v1" && parsed.data && typeof parsed.data === "object") {
+        state = parsed.data;
+      } else if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        state = parsed; // 兼容直接导出的原始 state 对象
+      } else {
+        alert("文件格式无法识别为复习进度。"); return;
+      }
+      try {
+        store.set(SKEY, JSON.stringify(state));
+        STATE = state;
+        alert("进度已导入，正在刷新视图…");
+        renderTree(); renderMode(); updateStat();
+      } catch (e) { alert("写入进度失败：" + (e && e.message ? e.message : e)); }
+    };
+    reader.onerror = function () { alert("文件读取出错。"); };
+    reader.readAsText(file);
+  }
+
   /* ---------- 统计徽章 ---------- */
   function updateStat() {
     const sub = curSubject();
@@ -456,6 +582,12 @@
     document.querySelectorAll(".mobilebar button[data-mode]").forEach(b => b.onclick = () => setMode(b.dataset.mode));
     document.getElementById("mbMenu").onclick = () => document.getElementById("sidebar").classList.toggle("open");
     document.getElementById("sideToggle").onclick = () => document.getElementById("sidebar").classList.toggle("open");
+    const be = document.getElementById("btnExport"); if (be) be.onclick = exportProgress;
+    const bi = document.getElementById("btnImport"); if (bi) bi.onclick = () => { const f = document.getElementById("importFile"); if (f) f.click(); };
+    const fi = document.getElementById("importFile"); if (fi) fi.onchange = function () {
+      if (fi.files && fi.files[0]) importProgress(fi.files[0]);
+      fi.value = ""; // 允许重复导入同一文件
+    };
   }
 
   /* ---------- 启动 ---------- */

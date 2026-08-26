@@ -25,6 +25,10 @@ body{font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
   border-radius:8px;padding:6px 14px;cursor:pointer;font-size:14px}
 .modes .mode.active{background:var(--green);color:#fff;border-color:var(--green)}
 .stat{font-size:12.5px;color:var(--amber);margin-left:6px;white-space:nowrap}
+.tools{display:flex;gap:6px;align-items:center}
+.tools button{border:1px solid var(--line);background:#fff;color:var(--sub);
+  border-radius:8px;padding:6px 12px;cursor:pointer;font-size:13px;white-space:nowrap}
+.tools button:hover{background:var(--brand-soft);color:var(--brand)}
 
 /* 布局 */
 .layout{display:flex;align-items:flex-start;min-height:calc(100vh - 56px)}
@@ -64,6 +68,25 @@ body{font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
 .dim .lab.s{color:var(--amber)}
 .dim .val{font-size:14px;margin-top:2px;white-space:pre-wrap;word-break:break-word}
 .dim .val.empty{color:#aab;font-style:italic}
+/* Markdown 渲染后的维度正文：交给标签排版，关掉 pre-wrap */
+.dim .val.md{white-space:normal}
+.md-p{margin:4px 0;line-height:1.75}
+.md-h{font-weight:700;font-size:14px;color:var(--ink);margin:9px 0 3px;
+  padding-left:8px;border-left:3px solid var(--brand)}
+.md-ul,.md-ol{margin:4px 0 6px;padding-left:20px}
+.md-ul li,.md-ol li{margin:2px 0;line-height:1.7}
+.md-note{margin:6px 0;padding:7px 10px;background:var(--amber-soft);
+  border-left:3px solid var(--amber);border-radius:0 7px 7px 0;font-size:13.5px;line-height:1.7}
+.md-t{border-collapse:collapse;width:100%;margin:7px 0;font-size:13px;display:block;overflow-x:auto}
+.md-t th,.md-t td{border:1px solid var(--line);padding:5px 8px;text-align:left;vertical-align:top}
+.md-t th{background:var(--brand-soft);color:var(--ink);font-weight:600;white-space:nowrap}
+.md-t tbody tr:nth-child(even){background:#fafbfd}
+.dim .val code{background:#eef1f6;border-radius:4px;padding:1px 5px;
+  font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12.5px}
+.dim .val b{color:#12356e}
+/* 分组折叠 */
+.group-head .fold{color:var(--sub);font-size:12px;width:12px;flex:0 0 12px;user-select:none}
+.group.folded .dim{display:none}
 
 /* 复习模式 */
 .review-box{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px;max-width:760px;margin:0 auto}
