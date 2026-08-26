@@ -1,8 +1,8 @@
 import type { Subject } from "../types";
 
-/* 生物化学 — 数据文件（全局变量，兼容 file:// 与 GitHub Pages）
- * dims 键对应 app.js 中定义的 25 个维度。未填写的维度显示"待补充"。
- * 电脑端可用"编辑模式"修改并导出；手机端仅复习交互。
+/* 生物化学 — 数据模块（真相来源）
+ * 25 个维度键由 src/types.ts 的 DimensionDims 精确锁死；未填写的维度在界面显示"待补充"。
+ * 电脑端"编辑模式"修改后点「导出本学科」会生成可直接覆盖本文件的 .ts。
  */
 export const biochem: Subject = {
   id: "biochem",

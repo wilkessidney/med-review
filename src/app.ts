@@ -579,7 +579,7 @@ function renderEdit(): void {
       <div class="pt-sub">当前：${esc(curSubject().name)} · ${esc(curChapter()!.name)}</div>
       <div class="edit-tools">
         <button id="edSave">保存（本地）</button>
-        <button class="ghost" id="edExport">导出本学科 JSON</button>
+        <button class="ghost" id="edExport">导出本学科 .ts</button>
         <button class="ghost" id="edAddPoint">+ 知识点</button>
         <button class="ghost" id="edAddCh">+ 章节</button>
         <button class="ghost" id="edDelPoint">删除本点</button>
@@ -630,7 +630,7 @@ function renderEdit(): void {
     html += "</div>";
   });
   html += `<div class="edit-save"><button class="btn-primary" id="edSave2">保存（本地）</button>
-      <button class="btn-ghost" id="edExport2">导出本学科 JSON</button></div>`;
+      <button class="btn-ghost" id="edExport2">导出本学科 .ts</button></div>`;
   html += "</div>";
   c.innerHTML = html;
   bindEdit();
@@ -662,7 +662,7 @@ function bindEdit(): void {
       }
     });
     saveData();
-    alert("已保存到本地（localStorage）。如需多设备同步，请点「导出本学科 JSON」并替换 data 文件后提交 GitHub。");
+    alert("已保存到本地（localStorage）。如需多设备同步或正式发布，请点「导出本学科」：会下载一个 " + curSubject().id + ".ts，用它覆盖 src/data/" + curSubject().id + ".ts 后提交，再执行 npm run build 重新构建。");
     renderTree();
   };
   const exp = () => exportSubject();
@@ -716,16 +716,29 @@ function bindEdit(): void {
 
 function exportSubject(): void {
   const sub = curSubject();
+  /* 导出为可直接覆盖 src/data/<id>.ts 的 TypeScript 模块。
+     补全每个知识点缺失的 25 维度键（填空串），保证生成物能过 tsc 类型检查。 */
+  const filled: Subject = {
+    ...sub,
+    chapters: sub.chapters.map((ch) => ({
+      ...ch,
+      points: (ch.points || []).map((p) => {
+        const dims = {} as typeof p.dims;
+        DIMENSIONS.forEach((d) => {
+          (dims as unknown as Record<string, string>)[d.k] = (p.dims as unknown as Record<string, string>)[d.k] ?? "";
+        });
+        return { ...p, dims };
+      }),
+    })),
+  };
+  const body = JSON.stringify(filled, null, 2);
   const txt =
-    "window.SUBJECTS = window.SUBJECTS || {};\nwindow.SUBJECTS." +
-    sub.id +
-    " = " +
-    JSON.stringify(sub, null, 2) +
-    ";\n";
-  const blob = new Blob([txt], { type: "text/javascript" });
+    'import type { Subject } from "../types";\n\n' +
+    `export const ${sub.id}: Subject = ${body};\n`;
+  const blob = new Blob([txt], { type: "text/typescript" });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
-  a.download = sub.id + ".js";
+  a.download = sub.id + ".ts";
   a.click();
 }
 
