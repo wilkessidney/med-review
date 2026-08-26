@@ -39,7 +39,7 @@ npm run dev      # 启动开发服务器，默认 http://localhost:5173
 
 ---
 
-## 三、构建与部署
+## 三、构建与部署（GitHub Pages 自动发布）
 
 ```bash
 npm run build    # tsc 类型检查 + vite 构建 → 产物在 dist/
@@ -48,8 +48,11 @@ npm run preview  # 本地预览构建产物（http://localhost:4173）
 
 `vite.config.ts` 已设 `base: "./"`，构建出的 `dist/` 用**相对路径**，可直接丢到任意静态托管：
 
-- **GitHub Pages**：把 `dist/` 内容推到 Pages 分支（若挂子路径 `/med-review/`，`base` 改为 `"/med-review/"` 即可）。
+- **GitHub Pages（推荐，已自动化）**：push 到 `main` 后，GitHub Actions（`.github/workflows/deploy.yml`）自动 `npm ci → build → 上传 dist/ → 发布`。在线地址：
+  > 🔗 https://wilkessidney.github.io/med-review/
 - **任意静态服务器 / 对象存储 / CDN**：上传 `dist/` 整个目录，访问 `index.html`。
+
+**首次启用 Pages（一次性）**：仓库 **Settings → Pages → Build and deployment → Source** 选 **GitHub Actions**（旧「从分支部署」方式即失效）。选好后每次 push `main` 都会自动重新部署，手机浏览器直接打开上面的地址即可复习。
 
 > 复习进度按浏览器本地保存（`localStorage`），不跨设备同步。换设备延续进度：用顶栏「导出进度 / 导入进度」按钮备份与恢复。
 
