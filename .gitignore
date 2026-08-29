@@ -10,6 +10,8 @@
 # 依赖与构建产物
 node_modules/
 dist/
+# Vite 构建时生成的临时配置缓存
+vite.config.ts.timestamp-*.mjs
 
 # 旧版备份与 demo
 backup/
