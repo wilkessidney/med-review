@@ -39,8 +39,11 @@ body{font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
 .side-head .mini{border:none;background:transparent;color:var(--brand);cursor:pointer;font-size:13px}
 .tree{padding:6px 8px}
 .chapter{margin:4px 0}
-.chapter>.ch-title{padding:7px 10px;cursor:pointer;border-radius:8px;font-weight:600;font-size:14px;display:flex;justify-content:space-between}
+.chapter>.ch-title{padding:7px 10px;cursor:pointer;border-radius:8px;font-weight:600;font-size:14px;display:flex;align-items:center;gap:6px}
 .chapter>.ch-title:hover{background:var(--brand-soft)}
+.chapter>.ch-title .ch-fold{flex:0 0 12px;width:12px;color:var(--sub);font-size:10px;user-select:none;text-align:center}
+.chapter>.ch-title .ch-fold:hover{color:var(--brand)}
+.chapter>.ch-title .ch-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
 .chapter>.ch-title .cnt{color:var(--sub);font-weight:400;font-size:12px}
 .point{padding:5px 10px 5px 22px;cursor:pointer;border-radius:8px;font-size:13.5px;color:var(--sub)}
 .point:hover{background:var(--brand-soft);color:var(--ink)}

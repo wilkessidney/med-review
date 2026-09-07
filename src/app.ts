@@ -75,6 +75,20 @@ const store = {
 
 const DKEY = "medreview_data_v1";
 const SKEY = "medreview_state_v1";
+const FKEY = "medreview_fold_v1";
+
+/* 章节折叠状态：key = 学科id::章节id */
+let FOLD: Record<string, boolean> = (() => {
+  try {
+    return JSON.parse(store.get(FKEY) || "{}") as Record<string, boolean>;
+  } catch (e) {
+    return {};
+  }
+})();
+function saveFold(): void {
+  store.set(FKEY, JSON.stringify(FOLD));
+}
+const foldKey = (ch: string): string => `${App.subject}::${ch}`;
 
 /* ---------- 数据加载与合并 ---------- */
 let DATA: SubjectsMap = {} as SubjectsMap;
@@ -330,8 +344,27 @@ function renderTree(): void {
     const cnt = ch.points ? ch.points.length : 0;
     const head = document.createElement("div");
     head.className = "ch-title";
-    head.innerHTML = `<span>${esc(ch.name)}</span><span class="cnt">${cnt}</span>`;
+    const folded = !!FOLD[foldKey(ch.id)];
+    head.innerHTML =
+      `<span class="ch-fold" title="折叠/展开子知识点">${folded ? "▸" : "▾"}</span>` +
+      `<span class="ch-name">${esc(ch.name)}</span><span class="cnt">${cnt}</span>`;
+    /* 点箭头：只切换折叠，不改变选中 */
+    const foldEl = head.querySelector(".ch-fold");
+    if (foldEl) {
+      foldEl.addEventListener("click", (ev: Event) => {
+        ev.stopPropagation();
+        if (folded) delete FOLD[foldKey(ch.id)];
+        else FOLD[foldKey(ch.id)] = true;
+        saveFold();
+        renderTree();
+      });
+    }
+    /* 点标题：沿用原行为（跳到本章第一个知识点）；若处于折叠则自动展开 */
     head.onclick = () => {
+      if (FOLD[foldKey(ch.id)]) {
+        delete FOLD[foldKey(ch.id)];
+        saveFold();
+      }
       App.chapterId = ch.id;
       App.pointId = ch.points && ch.points[0] ? ch.points[0].id : null;
       renderTree();
@@ -339,7 +372,7 @@ function renderTree(): void {
       if (window.innerWidth <= 768) $("sidebar").classList.remove("open");
     };
     wrap.appendChild(head);
-    if (ch.points) {
+    if (ch.points && !folded) {
       ch.points.forEach((p) => {
         const el = document.createElement("div");
         el.className = "point" + (p.id === App.pointId ? " active" : "");
