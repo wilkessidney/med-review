@@ -43,9 +43,30 @@ export interface Point {
 
 /* ---------- 临床执业医师：两段式应试模型 ----------
    砍掉一切元信息，只留两块：能直接背的知识 + 能直接做的题 */
+
+/* 题库：结构化题目，前后端都能判分 */
+export type QuizType = "A1" | "A2" | "A3" | "A4" | "B1";
+
+/* A3/A4 的小问；B1 的每个共用备选下的小题干 */
+export interface QuizSub {
+  q: string;
+  o?: string[];
+  a: string;
+  e: string;
+}
+
+export interface QuizQ {
+  t: QuizType;
+  q?: string; /* 题干（B1 为空，A3/A4 为病例） */
+  o?: string[]; /* 5 个备选，不含「A.」前缀；B1 为共用备选 */
+  a?: string; /* A1/A2 答案字母 */
+  e?: string; /* A1/A2 解析 */
+  s?: QuizSub[]; /* A3/A4/B1 的小问 */
+}
+
 export interface ExamDims {
-  k1_knowledge: string; /* ① 必背知识：压缩讲义（核心 / 题眼 / 数字 / 鉴别 / 陷阱 / 口诀） */
-  k2_quiz: string; /* ② 真题与同类考题：A1 / A2 各型 + 答案 + 解析 */
+  k1_knowledge: string; /* ① 必背知识：教材级讲义（一、/1．/（1）/① 层级） */
+  k2_quiz: QuizQ[]; /* ② 题库：A1 / A2 / A3-A4 / B1 */
 }
 
 export type ExamDimKey = keyof ExamDims;

@@ -11,6 +11,7 @@ import type {
   ReviewGrade,
   PointState,
   StateMap,
+  QuizQ,
 } from "./types";
 
 const $ = (id: string): HTMLElement => {
@@ -474,6 +475,124 @@ function dimHTML(d: Meta, value: string, isState: boolean): string {
       <div class="${lab}">${d.t}</div><div class="val${empty}">${shown}</div></div></div>`;
 }
 
+/* ---------- 题库渲染（A1/A2/A3/A4/B1，点击即判分） ---------- */
+const LET = ["A", "B", "C", "D", "E"];
+const QKEY = "medreview.quiz";
+let QANS: Record<string, string> = (() => {
+  try {
+    return JSON.parse(localStorage.getItem(QKEY) || "{}") as Record<string, string>;
+  } catch {
+    return {};
+  }
+})();
+function qsave(): void {
+  try {
+    localStorage.setItem(QKEY, JSON.stringify(QANS));
+  } catch {
+    /* 无痕模式忽略 */
+  }
+}
+function quizOf(p: AnyPoint): QuizQ[] {
+  const q = (p.dims as unknown as { k2_quiz?: QuizQ[] }).k2_quiz;
+  return Array.isArray(q) ? q : [];
+}
+function mdLines(t: string): string {
+  return mdInline(t).replace(/\n/g, "<br>");
+}
+function optRow(o: string[], ans: string, picked: string | null): string {
+  return o
+    .map((txt, idx) => {
+      const L = LET[idx];
+      let cls = "qopt";
+      if (picked) cls += L === ans ? " ok" : L === picked ? " bad" : " dim";
+      return `<button class="${cls}" data-l="${L}"><b>${L}</b><span>${esc(txt)}</span></button>`;
+    })
+    .join("");
+}
+function qUnit(key: string, label: string, stem: string, o: string[], ans: string, exp: string): string {
+  const picked = QANS[key] || null;
+  const tag = label ? `<span class="qlab">${esc(label)}</span>` : "";
+  return `<div class="qunit${picked ? " done" : ""}" data-k="${esc(key)}" data-a="${ans}">
+      <div class="qstem">${tag}${mdLines(stem)}</div>
+      ${o.length ? `<div class="qopts">${optRow(o, ans, picked)}</div>` : ""}
+      <div class="qexp">${mdInline(exp)}</div></div>`;
+}
+function quizHTML(qs: QuizQ[], pid: string): string {
+  if (!qs.length) return '<div class="md-p" style="color:var(--sub)">本题库正在补题，先看知识点。</div>';
+  let total = 0;
+  let html = "";
+  qs.forEach((q, i) => {
+    const base = `${pid}#${i}`;
+    if (q.t === "B1") {
+      total += (q.s || []).length;
+      html += `<div class="qcase"><div class="qtag">B1 共用备选答案</div><div class="qshared">${(q.o || [])
+        .map((t, k) => `<div><b>${LET[k]}</b>${esc(t)}</div>`)
+        .join("")}</div>`;
+      (q.s || []).forEach((s, j) => {
+        const key = `${base}.${j}`;
+        const picked = QANS[key] || null;
+        const btns = LET.map((L) => {
+          let cls = "";
+          if (picked) cls = L === s.a ? "ok" : L === picked ? "bad" : "dim";
+          return `<button class="${cls}" data-l="${L}">${L}</button>`;
+        }).join("");
+        html += `<div class="qunit${picked ? " done" : ""}" data-k="${esc(key)}" data-a="${s.a}">
+            <div class="qstem">${mdLines(s.q)}</div>
+            <div class="qletters">${btns}</div>
+            <div class="qexp">${mdInline(s.e)}</div></div>`;
+      });
+      html += "</div>";
+      return;
+    }
+    if (q.t === "A3" || q.t === "A4") {
+      total += (q.s || []).length;
+      html += `<div class="qcase"><div class="qtag">${q.t} 病例组题</div><div class="qcasebody">${mdLines(q.q || "")}</div>`;
+      (q.s || []).forEach((s, j) => {
+        html += qUnit(`${base}.${j}`, `第${j + 1}问`, s.q, s.o || [], s.a, s.e);
+      });
+      html += "</div>";
+      return;
+    }
+    total += 1;
+    html += qUnit(base, q.t, q.q || "", q.o || [], q.a || "", q.e || "");
+  });
+  const done = Object.keys(QANS).filter((k) => k.startsWith(`${pid}#`)).length;
+  const right = qs.reduce((n, q, i) => {
+    if (q.t === "A3" || q.t === "A4" || q.t === "B1") {
+      return n + (q.s || []).filter((s, j) => QANS[`${pid}#${i}.${j}`] === s.a).length;
+    }
+    return n + (QANS[`${pid}#${i}`] === q.a ? 1 : 0);
+  }, 0);
+  return `<div class="qbar">共 ${total} 题<span class="qstat">已答 ${Math.min(done, total)} · 正确 ${right}</span></div>${html}`;
+}
+function bindQuiz(root: HTMLElement): void {
+  root.querySelectorAll(".qunit").forEach((u) => {
+    const key = u.getAttribute("data-k");
+    const ans = u.getAttribute("data-a");
+    if (!key || !ans) return;
+    u.querySelectorAll("button[data-l]").forEach((b) => {
+      (b as HTMLElement).onclick = () => {
+        if (u.classList.contains("done")) return;
+        const picked = b.getAttribute("data-l") || "";
+        QANS[key] = picked;
+        qsave();
+        u.classList.add("done", picked === ans ? "hit" : "miss");
+        u.querySelectorAll("button[data-l]").forEach((x) => {
+          const L = x.getAttribute("data-l");
+          x.classList.add(L === ans ? "ok" : L === picked ? "bad" : "dim");
+        });
+        const quiz = root.querySelector(".quiz");
+        if (quiz) {
+          const done = u.closest(".quiz")!.querySelectorAll(".qunit.done").length;
+          const right = u.closest(".quiz")!.querySelectorAll(".qunit.hit").length;
+          const st = quiz.querySelector(".qstat");
+          if (st) st.textContent = `已答 ${done} · 正确 ${right}`;
+        }
+      };
+    });
+  });
+}
+
 function pointValue(p: AnyPoint, d: Meta, sub: string, pid: string): string {
   const dm = dimsOf(p);
   if (d.state) {
@@ -515,12 +634,14 @@ function renderBrowse(): void {
   }
   let html = `<div class="card"><h2>${esc(p.title)}</h2>
       <div class="pt-sub">${esc(curSubject().name)} · ${esc(curChapter()!.name)}</div></div>`;
-  /* 执业医师模型只有两块，不再套折叠组，直接两张卡：① 知识 ② 题 */
+  /* 执业医师模型：知识一张卡 + 题库一张卡（题库可点击判分，不套折叠组） */
   if (isExam()) {
-    curMeta().forEach((d) => {
-      html += dimHTML(d, pointValue(p, d, App.subject!, p.id), false);
-    });
+    const qs = quizOf(p);
+    html += dimHTML(EXAM_DIMENSIONS[0], pointValue(p, EXAM_DIMENSIONS[0], App.subject!, p.id), false);
+    html += `<div class="card quiz-card"><h2 class="qtitle">真题与同类题<span class="qsub">${qs.length} 组</span></h2>
+        <div class="quiz" data-pid="${esc(p.id)}">${quizHTML(qs, p.id)}</div></div>`;
     c.innerHTML = html;
+    bindQuiz(c);
     return;
   }
   curGroups().forEach((g) => {
@@ -599,10 +720,10 @@ function renderReview(): void {
       <div class="recall">凭记忆回忆：${esc(recallList)}</div></div>`;
   if (revealed) {
     if (isExam()) {
-      /* 两段式模型：分组头与卡片头同名，去掉分组头避免「必背知识」重复两次 */
-      curMeta().forEach((d) => {
-        html += dimHTML(d, pointValue(p, d, App.subject!, p.id), d.state ?? false);
-      });
+      /* 两段式模型：知识卡 + 题库卡（复习时题库只读，答案已在选项里标出） */
+      html += dimHTML(EXAM_DIMENSIONS[0], pointValue(p, EXAM_DIMENSIONS[0], App.subject!, p.id), false);
+      html += `<div class="dim quiz-card"><div class="body"><div class="lab">② 真题与同类题</div>
+          <div class="val md"><div class="quiz" data-pid="${esc(p.id)}">${quizHTML(quizOf(p), p.id)}</div></div></div></div>`;
     } else {
       curGroups().forEach((g) => {
         const dims = curMeta().filter((d) => d.g === g.id);
@@ -625,6 +746,7 @@ function renderReview(): void {
   html += `<div class="rprogress">进度 ${Math.min(App.reviewIdx + 1, total)} / ${total}</div>`;
   html += "</div>";
   c.innerHTML = html;
+  bindQuiz(c);
 
   c.querySelectorAll(".chips button").forEach((b) => {
     (b as HTMLElement).onclick = () => {

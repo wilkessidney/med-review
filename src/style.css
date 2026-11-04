@@ -91,6 +91,49 @@ body{font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
 .md-eye{margin:22px 0 8px;padding:7px 12px;border-left:4px solid var(--amber);
   border-radius:0 8px 8px 0;background:linear-gradient(90deg,var(--amber-soft),rgba(253,243,224,0));
   font-size:15px;color:#8a5a06}
+
+/* ---------- 题库 ---------- */
+.quiz-card{margin-top:14px}
+.qtitle{display:flex;align-items:baseline;gap:10px}
+.qtitle .qsub{font-size:12px;font-weight:400;color:var(--sub)}
+.qbar{display:flex;justify-content:space-between;align-items:center;font-size:12.5px;
+  color:var(--sub);padding:2px 0 10px;border-bottom:1px dashed var(--line);margin-bottom:12px}
+.qunit{border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin:10px 0;background:#fcfdff}
+.qunit.done.miss{background:#fffafa;border-color:#f6c9c9}
+.qunit.done.hit{background:#fafdfb;border-color:#c4e7d2}
+.qstem{font-size:14.5px;line-height:1.75;color:var(--ink);margin-bottom:9px}
+.qlab{display:inline-block;margin-right:6px;padding:0 7px;border-radius:6px;
+  background:var(--brand-soft);color:var(--brand);font-size:12px;font-weight:700}
+.qopts{display:flex;flex-direction:column;gap:6px}
+.qopt{display:flex;gap:9px;align-items:flex-start;text-align:left;cursor:pointer;
+  border:1px solid var(--line);background:#fff;border-radius:8px;padding:8px 11px;
+  font-size:14px;line-height:1.6;color:var(--ink);font-family:inherit;transition:.12s}
+.qopt:hover{border-color:var(--brand);background:var(--brand-soft)}
+.qopt b{flex:0 0 18px;color:var(--brand);font-weight:700}
+.qopt span{flex:1;min-width:0}
+.qopt.ok{border-color:var(--green);background:var(--green-soft)}
+.qopt.ok b{color:var(--green)}
+.qopt.bad{border-color:var(--red);background:var(--red-soft)}
+.qopt.bad b{color:var(--red)}
+.qopt.dim{opacity:.55}
+.qletters{display:flex;gap:8px;margin:4px 0 2px}
+.qletters button{width:38px;height:34px;border:1px solid var(--line);background:#fff;border-radius:8px;
+  cursor:pointer;font-size:14px;font-weight:700;color:var(--sub);font-family:inherit}
+.qletters button:hover{border-color:var(--brand);color:var(--brand)}
+.qletters button.ok{border-color:var(--green);background:var(--green-soft);color:var(--green)}
+.qletters button.bad{border-color:var(--red);background:var(--red-soft);color:var(--red)}
+.qletters button.dim{opacity:.5}
+.qexp{display:none;margin-top:10px;padding:9px 12px;border-radius:8px;
+  background:var(--amber-soft);border-left:3px solid var(--amber);
+  font-size:13.5px;line-height:1.75;color:#5a4416}
+.qunit.done .qexp{display:block}
+.qcase{border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin:12px 0;background:#f8faff}
+.qtag{display:inline-block;margin-bottom:8px;padding:2px 9px;border-radius:20px;
+  background:var(--purple-soft);color:var(--purple);font-size:11.5px;font-weight:700}
+.qcasebody{font-size:14.5px;line-height:1.8;margin-bottom:10px;color:var(--ink)}
+.qshared{border:1px solid var(--line);border-radius:8px;background:#fff;padding:9px 12px;margin-bottom:6px}
+.qshared div{font-size:13.8px;line-height:1.9}
+.qshared b{margin-right:8px;color:var(--brand)}
 .md-ul,.md-ol{margin:4px 0 6px;padding-left:20px}
 .md-ul li,.md-ol li{margin:2px 0;line-height:1.7}
 .md-note{margin:6px 0;padding:7px 10px;background:var(--amber-soft);
