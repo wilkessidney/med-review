@@ -41,21 +41,39 @@ export interface Point {
   dims: DimensionDims;
 }
 
+/* ---------- 临床执业医师：两段式应试模型 ----------
+   砍掉一切元信息，只留两块：能直接背的知识 + 能直接做的题 */
+export interface ExamDims {
+  k1_knowledge: string; /* ① 必背知识：压缩讲义（核心 / 题眼 / 数字 / 鉴别 / 陷阱 / 口诀） */
+  k2_quiz: string; /* ② 真题与同类考题：A1 / A2 各型 + 答案 + 解析 */
+}
+
+export type ExamDimKey = keyof ExamDims;
+
+export interface ExamPoint {
+  id: string;
+  title: string;
+  dims: ExamDims;
+}
+
 export interface Chapter {
   id: string;
   name: string;
   points?: Point[];
+  epoints?: ExamPoint[];
 }
 
 export interface Subject {
   id: string;
   name: string;
+  /* exam = 执业医师低维考点模型（8 维）；basic = 教材提取式 25 维 */
+  kind?: "basic" | "exam";
   chapters: Chapter[];
 }
 
 export type SubjectsMap = Record<string, Subject>;
 
-export type GroupId = "认知" | "应用" | "错误" | "网络" | "薄弱";
+export type GroupId = "认知" | "应用" | "错误" | "网络" | "薄弱" | "知识" | "题目";
 
 export interface DimensionMeta {
   k: DimKey;

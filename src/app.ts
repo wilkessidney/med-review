@@ -4,8 +4,10 @@ import type {
   Subject,
   Chapter,
   Point,
+  ExamPoint,
   GroupMeta,
   DimensionMeta,
+  GroupId,
   ReviewGrade,
   PointState,
   StateMap,
@@ -52,6 +54,26 @@ const DIMENSIONS: DimensionMeta[] = [
   { k: "c5_errfreq", n: "㉓", t: "错误频率", g: "薄弱", state: true },
   { k: "c5_impact", n: "㉔", t: "影响程度", g: "薄弱", state: true },
   { k: "c5_priority", n: "㉕", t: "修复优先级", g: "薄弱", state: true },
+];
+
+/* ---------- 执业医师两段式模型：知识 + 题 ---------- */
+const EXAM_GROUPS: GroupMeta[] = [
+  { id: "知识", name: "必背知识", sub: "只看这一块就够了" },
+  { id: "题目", name: "真题与同类考题", sub: "先做，再对答案" },
+];
+
+/* 通用维度元数据：25 维模型与两段式模型共用同一套渲染管线 */
+interface Meta {
+  k: string;
+  n: string;
+  t: string;
+  g: GroupId;
+  state?: boolean;
+}
+
+const EXAM_DIMENSIONS: Meta[] = [
+  { k: "k1_knowledge", n: "①", t: "必背知识", g: "知识" },
+  { k: "k2_quiz", n: "②", t: "真题与同类考题", g: "题目" },
 ];
 
 /* ---------- 安全存储（file:// 部分浏览器禁 localStorage） ---------- */
@@ -179,6 +201,15 @@ function isHead(l: string): boolean {
   return /^\s*#{2,4}\s+/.test(l);
 }
 
+/* 中文教材式层级：一、 / 1． / （1） / ① —— 纯文本编号，靠样式分层，不能并进段落 */
+function cjkLevel(l: string): 0 | 1 | 2 | 3 | 4 {
+  if (/^\s*[一二三四五六七八九十]{1,3}、/.test(l)) return 1;
+  if (/^\s*\d{1,2}．/.test(l)) return 2;
+  if (/^\s*（\d{1,2}）/.test(l)) return 3;
+  if (/^\s*[①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳]/.test(l)) return 4;
+  return 0;
+}
+
 function mdHTML(src: string): string {
   const lines = String(src == null ? "" : src).replace(/\r/g, "").split("\n");
   const out: string[] = [];
@@ -249,7 +280,20 @@ function mdHTML(src: string): string {
       continue;
     }
     if (isHead(ln)) {
-      out.push('<div class="md-h">' + mdInline(ln.replace(/^\s*#{2,4}\s+/, "")) + "</div>");
+      const ht = ln.replace(/^\s*#{2,4}\s+/, "");
+      const isEye = /题眼速查/.test(ht);
+      out.push('<div class="md-h' + (isEye ? " md-eye" : "") + '">' + mdInline(ht) + "</div>");
+      i++;
+      continue;
+    }
+    const cjk = cjkLevel(ln);
+    if (cjk === 1) {
+      out.push('<div class="md-h2">' + mdInline(ln.trim()) + "</div>");
+      i++;
+      continue;
+    }
+    if (cjk >= 2) {
+      out.push('<div class="md-li md-li' + (cjk - 1) + '">' + mdInline(ln.trim()) + "</div>");
       i++;
       continue;
     }
@@ -261,7 +305,8 @@ function mdHTML(src: string): string {
       !isUl(lines[i]) &&
       !isOl(lines[i]) &&
       !isNote(lines[i]) &&
-      !isHead(lines[i])
+      !isHead(lines[i]) &&
+      !cjkLevel(lines[i])
     ) {
       buf.push(lines[i]);
       i++;
@@ -279,7 +324,7 @@ interface AppState {
   mode: "browse" | "review" | "edit";
   reviewFilter: "due" | "weak" | "all";
   reviewIdx: number;
-  reviewQueue: { ch: string; p: Point }[];
+  reviewQueue: { ch: string; p: AnyPoint }[];
   _revealed?: boolean;
 }
 
@@ -302,10 +347,29 @@ function curSubject(): Subject {
 function curChapter(): Chapter | undefined {
   return curSubject().chapters.find((c) => c.id === App.chapterId);
 }
-function curPoint(): Point | null {
+/* ---------- 双模型适配：25 维（basic）/ 8 维（exam） ---------- */
+type AnyPoint = Point | ExamPoint;
+
+function chPts(ch: Chapter): AnyPoint[] {
+  if (ch.epoints && ch.epoints.length) return ch.epoints as unknown as AnyPoint[];
+  return (ch.points || []) as AnyPoint[];
+}
+function isExam(): boolean {
+  return curSubject().kind === "exam";
+}
+function curMeta(): Meta[] {
+  return isExam() ? EXAM_DIMENSIONS : (DIMENSIONS as Meta[]);
+}
+function curGroups(): GroupMeta[] {
+  return isExam() ? EXAM_GROUPS : GROUPS;
+}
+function dimsOf(p: AnyPoint): Record<string, string> {
+  return p.dims as unknown as Record<string, string>;
+}
+function curPoint(): AnyPoint | null {
   const ch = curChapter();
-  if (!ch || !ch.points) return null;
-  return ch.points.find((p) => p.id === App.pointId) || null;
+  if (!ch) return null;
+  return chPts(ch).find((p) => p.id === App.pointId) || null;
 }
 
 /* ---------- 渲染：科目标签 ---------- */
@@ -324,8 +388,9 @@ function renderSubjects(): void {
 function selectSubject(id: string): void {
   App.subject = id;
   const ch = curSubject().chapters[0];
+  const pts = ch ? chPts(ch) : [];
   App.chapterId = ch ? ch.id : null;
-  App.pointId = ch && ch.points && ch.points[0] ? ch.points[0].id : null;
+  App.pointId = pts[0] ? pts[0].id : null;
   renderSubjects();
   renderTree();
   renderMode();
@@ -341,7 +406,7 @@ function renderTree(): void {
   curSubject().chapters.forEach((ch) => {
     const wrap = document.createElement("div");
     wrap.className = "chapter";
-    const cnt = ch.points ? ch.points.length : 0;
+    const cnt = chPts(ch).length;
     const head = document.createElement("div");
     head.className = "ch-title";
     const folded = !!FOLD[foldKey(ch.id)];
@@ -366,14 +431,14 @@ function renderTree(): void {
         saveFold();
       }
       App.chapterId = ch.id;
-      App.pointId = ch.points && ch.points[0] ? ch.points[0].id : null;
+      App.pointId = chPts(ch)[0] ? chPts(ch)[0].id : null;
       renderTree();
       renderMode();
       if (window.innerWidth <= 768) $("sidebar").classList.remove("open");
     };
     wrap.appendChild(head);
-    if (ch.points && !folded) {
-      ch.points.forEach((p) => {
+    if (!folded) {
+      chPts(ch).forEach((p) => {
         const el = document.createElement("div");
         el.className = "point" + (p.id === App.pointId ? " active" : "");
         const st = getSt(App.subject!, p.id);
@@ -399,7 +464,7 @@ function renderTree(): void {
 }
 
 /* ---------- 渲染：维度卡片 ---------- */
-function dimHTML(d: DimensionMeta, value: string, isState: boolean): string {
+function dimHTML(d: Meta, value: string, isState: boolean): string {
   const cls = isState ? "num s" : "num";
   const lab = isState ? "lab s" : "lab";
   const isEmpty = value == null || value === "";
@@ -409,34 +474,35 @@ function dimHTML(d: DimensionMeta, value: string, isState: boolean): string {
       <div class="${lab}">${d.t}</div><div class="val${empty}">${shown}</div></div></div>`;
 }
 
-function pointValue(p: Point, d: DimensionMeta, sub: string, pid: string): string {
+function pointValue(p: AnyPoint, d: Meta, sub: string, pid: string): string {
+  const dm = dimsOf(p);
   if (d.state) {
     const st = getSt(sub, pid);
     switch (d.k) {
       case "c4_forget":
-        return st.forget || p.dims.c4_forget || "未评估";
+        return st.forget || dm.c4_forget || "未评估";
       case "c4_lastreview":
-        return st.lastReview ? fmtDate(st.lastReview) : "未复习";
+        return st.lastReview ? fmtDate(st.lastReview) : dm.c4_lastreview || "未复习";
       case "c4_nextreview":
         return st.nextReview
           ? fmtDate(st.nextReview) +
               (days(st.nextReview)! <= 0 ? "（已到期）" : `（${days(st.nextReview)}天后）`)
-          : "—";
+          : dm.c4_nextreview || "—";
       case "c5_mastery":
-        return st.mastery || p.dims.c5_mastery || "未评估";
+        return st.mastery || dm.c5_mastery || "未评估";
       case "c5_weak":
-        return st.weak ? "是" : p.dims.c5_weak || "否";
+        return st.weak ? "是" : dm.c5_weak || "否";
       case "c5_weaksource":
-        return st.weaksource || p.dims.c5_weaksource || "";
+        return st.weaksource || dm.c5_weaksource || "";
       case "c5_errfreq":
-        return st.errfreq || p.dims.c5_errfreq || "";
+        return st.errfreq || dm.c5_errfreq || "";
       case "c5_impact":
-        return st.impact || p.dims.c5_impact || "";
+        return st.impact || dm.c5_impact || "";
       case "c5_priority":
-        return st.priority || p.dims.c5_priority || "";
+        return st.priority || dm.c5_priority || "";
     }
   }
-  return p.dims[d.k] || "";
+  return dm[d.k] || "";
 }
 
 function renderBrowse(): void {
@@ -449,8 +515,16 @@ function renderBrowse(): void {
   }
   let html = `<div class="card"><h2>${esc(p.title)}</h2>
       <div class="pt-sub">${esc(curSubject().name)} · ${esc(curChapter()!.name)}</div></div>`;
-  GROUPS.forEach((g) => {
-    const dims = DIMENSIONS.filter((d) => d.g === g.id);
+  /* 执业医师模型只有两块，不再套折叠组，直接两张卡：① 知识 ② 题 */
+  if (isExam()) {
+    curMeta().forEach((d) => {
+      html += dimHTML(d, pointValue(p, d, App.subject!, p.id), false);
+    });
+    c.innerHTML = html;
+    return;
+  }
+  curGroups().forEach((g) => {
+    const dims = curMeta().filter((d) => d.g === g.id);
     let inner = "";
     dims.forEach((d) => {
       inner += dimHTML(d, pointValue(p, d, App.subject!, p.id), d.state ?? false);
@@ -477,11 +551,9 @@ function renderBrowse(): void {
 /* ---------- 复习模式 ---------- */
 function buildQueue(): void {
   const sub = curSubject();
-  let pts: { ch: string; p: Point }[] = [];
+  let pts: { ch: string; p: AnyPoint }[] = [];
   sub.chapters.forEach((ch) => {
-    if (ch.points) {
-      ch.points.forEach((p) => pts.push({ ch: ch.name, p }));
-    }
+    chPts(ch).forEach((p) => pts.push({ ch: ch.name, p }));
   });
   if (App.reviewFilter === "due") {
     pts = pts.filter((o) => {
@@ -513,7 +585,7 @@ function renderReview(): void {
   const item = App.reviewQueue[App.reviewIdx];
   const p = item.p;
   const revealed = App._revealed;
-  const recallList = DIMENSIONS.filter((d) => !d.state)
+  const recallList = curMeta().filter((d) => !d.state)
     .map((d) => d.t)
     .join("、");
   let html = '<div class="review-box">';
@@ -526,14 +598,21 @@ function renderReview(): void {
       <div class="ttl">${esc(p.title)}</div>
       <div class="recall">凭记忆回忆：${esc(recallList)}</div></div>`;
   if (revealed) {
-    GROUPS.forEach((g) => {
-      const dims = DIMENSIONS.filter((d) => d.g === g.id);
-      let inner = "";
-      dims.forEach((d) => {
-        inner += dimHTML(d, pointValue(p, d, App.subject!, p.id), d.state ?? false);
+    if (isExam()) {
+      /* 两段式模型：分组头与卡片头同名，去掉分组头避免「必背知识」重复两次 */
+      curMeta().forEach((d) => {
+        html += dimHTML(d, pointValue(p, d, App.subject!, p.id), d.state ?? false);
       });
-      html += `<div class="group"><div class="group-head"><span class="gn">${esc(g.name)}</span><span class="bar"></span></div>${inner}</div>`;
-    });
+    } else {
+      curGroups().forEach((g) => {
+        const dims = curMeta().filter((d) => d.g === g.id);
+        let inner = "";
+        dims.forEach((d) => {
+          inner += dimHTML(d, pointValue(p, d, App.subject!, p.id), d.state ?? false);
+        });
+        html += `<div class="group"><div class="group-head"><span class="gn">${esc(g.name)}</span><span class="bar"></span></div>${inner}</div>`;
+      });
+    }
     html += `<div class="rating">
         <button class="again" data-g="again">忘记</button>
         <button class="hard" data-g="hard">模糊</button>
@@ -625,26 +704,27 @@ function renderEdit(): void {
   p.dims = p.dims || ({} as typeof p.dims);
   html += `<div class="card edit-form"><h2 style="font-size:17px">${esc(p.title)}</h2>`;
   html += `<div class="frow"><label>知识点标题</label><input type="text" id="f_title" value="${esc(p.title)}"></div>`;
-  GROUPS.forEach((g) => {
+  const pds = dimsOf(p);
+  curGroups().forEach((g) => {
     html += `<div class="group"><div class="group-head"><span class="gn">${esc(g.name)}</span><span class="bar"></span></div>`;
-    DIMENSIONS.filter((d) => d.g === g.id).forEach((d) => {
+    curMeta().filter((d) => d.g === g.id).forEach((d) => {
       let val = "";
       if (d.state) {
         const st = getSt(App.subject!, p.id);
-        if (d.k === "c4_forget") val = st.forget || p.dims.c4_forget || "";
-        else if (d.k === "c5_mastery") val = st.mastery || p.dims.c5_mastery || "";
-        else if (d.k === "c5_weak") val = st.weak ? "是" : p.dims.c5_weak || "否";
-        else if (d.k === "c5_weaksource") val = st.weaksource || p.dims.c5_weaksource || "";
-        else if (d.k === "c5_errfreq") val = st.errfreq || p.dims.c5_errfreq || "";
-        else if (d.k === "c5_impact") val = st.impact || p.dims.c5_impact || "";
-        else if (d.k === "c5_priority") val = st.priority || p.dims.c5_priority || "";
+        if (d.k === "c4_forget") val = st.forget || pds.c4_forget || "";
+        else if (d.k === "c5_mastery") val = st.mastery || pds.c5_mastery || "";
+        else if (d.k === "c5_weak") val = st.weak ? "是" : pds.c5_weak || "否";
+        else if (d.k === "c5_weaksource") val = st.weaksource || pds.c5_weaksource || "";
+        else if (d.k === "c5_errfreq") val = st.errfreq || pds.c5_errfreq || "";
+        else if (d.k === "c5_impact") val = st.impact || pds.c5_impact || "";
+        else if (d.k === "c5_priority") val = st.priority || pds.c5_priority || "";
         if (d.k === "c4_lastreview" || d.k === "c4_nextreview") {
           html += `<div class="frow"><label>${d.n} ${d.t}（系统管理）</label>
               <input type="text" value="${d.k === "c4_lastreview" ? fmtDate(st.lastReview) : st.nextReview ? fmtDate(st.nextReview) : "—"}" disabled></div>`;
           return;
         }
       } else {
-        val = p.dims[d.k] || "";
+        val = pds[d.k] || "";
       }
       const isSel = d.k === "c4_forget" || d.k === "c5_mastery" || d.k === "c5_weak";
       if (isSel) {
@@ -676,7 +756,8 @@ function bindEdit(): void {
     const titleInput = document.getElementById("f_title") as HTMLInputElement | null;
     if (titleInput) p.title = titleInput.value;
     p.dims = p.dims || ({} as typeof p.dims);
-    DIMENSIONS.forEach((d) => {
+    const pds = dimsOf(p);
+    curMeta().forEach((d) => {
       if (d.k === "c4_lastreview" || d.k === "c4_nextreview") return;
       const el = document.getElementById("f_" + d.k) as HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement | null;
       if (!el) return;
@@ -691,7 +772,7 @@ function bindEdit(): void {
         else if (d.k === "c5_priority") st.priority = el.value;
         updSt(App.subject!, p.id, st);
       } else {
-        p.dims[d.k] = el.value;
+        pds[d.k] = el.value;
       }
     });
     saveData();
@@ -701,9 +782,17 @@ function bindEdit(): void {
   const exp = () => exportSubject();
   const addPoint = () => {
     const ch = curChapter()!;
-    ch.points = ch.points || [];
     const pid = "u" + Date.now();
-    ch.points.push({ id: pid, title: "新知识点", dims: {} as Point["dims"] });
+    const blank: AnyPoint = isExam()
+      ? ({ id: pid, title: "新知识点", dims: {} as ExamPoint["dims"] } as ExamPoint)
+      : ({ id: pid, title: "新知识点", dims: {} as Point["dims"] } as Point);
+    if (isExam()) {
+      ch.epoints = ch.epoints || [];
+      ch.epoints.push(blank as ExamPoint);
+    } else {
+      ch.points = ch.points || [];
+      ch.points.push(blank as Point);
+    }
     App.pointId = pid;
     saveData();
     renderTree();
@@ -712,7 +801,8 @@ function bindEdit(): void {
   const addCh = () => {
     const sub = curSubject();
     const cid = "c" + Date.now();
-    sub.chapters.push({ id: cid, name: "新章节", points: [] });
+    if (isExam()) sub.chapters.push({ id: cid, name: "新章节", epoints: [] });
+    else sub.chapters.push({ id: cid, name: "新章节", points: [] });
     App.chapterId = cid;
     App.pointId = null;
     saveData();
@@ -721,12 +811,21 @@ function bindEdit(): void {
   };
   const delPoint = () => {
     const ch = curChapter()!;
-    if (!ch.points) return;
-    const i = ch.points.findIndex((p) => p.id === App.pointId);
-    if (i < 0) return;
-    if (!confirm("确认删除该知识点？")) return;
-    ch.points.splice(i, 1);
-    App.pointId = ch.points[0] ? ch.points[0].id : null;
+    if (isExam()) {
+      if (!ch.epoints) return;
+      const i = ch.epoints.findIndex((p) => p.id === App.pointId);
+      if (i < 0) return;
+      if (!confirm("确认删除该知识点？")) return;
+      ch.epoints.splice(i, 1);
+      App.pointId = ch.epoints[0] ? ch.epoints[0].id : null;
+    } else {
+      if (!ch.points) return;
+      const i = ch.points.findIndex((p) => p.id === App.pointId);
+      if (i < 0) return;
+      if (!confirm("确认删除该知识点？")) return;
+      ch.points.splice(i, 1);
+      App.pointId = ch.points[0] ? ch.points[0].id : null;
+    }
     saveData();
     renderTree();
     renderEdit();
@@ -751,18 +850,23 @@ function exportSubject(): void {
   const sub = curSubject();
   /* 导出为可直接覆盖 src/data/<id>.ts 的 TypeScript 模块。
      补全每个知识点缺失的 25 维度键（填空串），保证生成物能过 tsc 类型检查。 */
+  const meta = curMeta();
+  const fill = (p: AnyPoint): Record<string, string> => {
+    const src = dimsOf(p);
+    const dims: Record<string, string> = {};
+    meta.forEach((d) => {
+      dims[d.k] = src[d.k] ?? "";
+    });
+    return dims;
+  };
   const filled: Subject = {
     ...sub,
-    chapters: sub.chapters.map((ch) => ({
-      ...ch,
-      points: (ch.points || []).map((p) => {
-        const dims = {} as typeof p.dims;
-        DIMENSIONS.forEach((d) => {
-          (dims as unknown as Record<string, string>)[d.k] = (p.dims as unknown as Record<string, string>)[d.k] ?? "";
-        });
-        return { ...p, dims };
-      }),
-    })),
+    kind: sub.kind,
+    chapters: sub.chapters.map((ch) =>
+      isExam()
+        ? { ...ch, points: undefined, epoints: (ch.epoints || []).map((p) => ({ ...p, dims: fill(p) as unknown as ExamPoint["dims"] })) }
+        : { ...ch, points: (ch.points || []).map((p) => ({ ...p, dims: fill(p) as unknown as Point["dims"] })) }
+    ),
   };
   const body = JSON.stringify(filled, null, 2);
   const txt =
@@ -851,14 +955,12 @@ function updateStat(): void {
   let weak = 0;
   let total = 0;
   sub.chapters.forEach((ch) => {
-    if (ch.points) {
-      ch.points.forEach((p) => {
-        total++;
-        const st = getSt(App.subject!, p.id);
-        if (!st.lastReview || (st.nextReview && st.nextReview <= Date.now())) due++;
-        if (st.weak) weak++;
-      });
-    }
+    chPts(ch).forEach((p) => {
+      total++;
+      const st = getSt(App.subject!, p.id);
+      if (!st.lastReview || (st.nextReview && st.nextReview <= Date.now())) due++;
+      if (st.weak) weak++;
+    });
   });
   $("statBadge").textContent = `待复习 ${due} · 薄弱 ${weak} / 共 ${total}`;
 }
@@ -924,9 +1026,10 @@ export function initApp(SUBJECTS: SubjectsMap): void {
   DATA = loadData(SUBJECTS);
   STATE = loadState();
   App.subject = Object.keys(DATA)[0];
-  const ch = curSubject().chapters[0];
-  App.chapterId = ch ? ch.id : null;
-  App.pointId = ch && ch.points && ch.points[0] ? ch.points[0].id : null;
+  const ch0 = curSubject().chapters[0];
+  const pts0 = ch0 ? chPts(ch0) : [];
+  App.chapterId = ch0 ? ch0.id : null;
+  App.pointId = pts0[0] ? pts0[0].id : null;
   bindGlobal();
   renderSubjects();
   renderTree();

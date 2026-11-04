@@ -76,6 +76,21 @@ body{font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
 .md-p{margin:4px 0;line-height:1.75}
 .md-h{font-weight:700;font-size:14px;color:var(--ink);margin:9px 0 3px;
   padding-left:8px;border-left:3px solid var(--brand)}
+/* 教材式长文：一、小节标题 */
+.md-h2{margin:20px 0 8px;font-size:16px;font-weight:700;color:#12356e;line-height:1.5;
+  padding:7px 12px;border-left:4px solid var(--brand);border-radius:0 8px 8px 0;
+  background:linear-gradient(90deg,var(--brand-soft),rgba(234,241,255,0))}
+.md-h2:first-child{margin-top:4px}
+/* 1．/（1）/① 逐级缩进，悬挂编号 */
+.md-li{line-height:1.85;word-break:break-word;color:var(--ink)}
+.md-li1{margin:7px 0;padding-left:1.75em;text-indent:-1.75em;font-size:14.5px}
+.md-li1::first-letter{font-weight:700;color:var(--brand)}
+.md-li2{margin:5px 0 5px 0.4em;padding-left:2.9em;text-indent:-2.9em;font-size:14px;color:#2b3444}
+.md-li3{margin:4px 0 4px 0.8em;padding-left:3.9em;text-indent:-3.9em;font-size:13.8px;color:#3a4453}
+/* 题眼速查表标题 */
+.md-eye{margin:22px 0 8px;padding:7px 12px;border-left:4px solid var(--amber);
+  border-radius:0 8px 8px 0;background:linear-gradient(90deg,var(--amber-soft),rgba(253,243,224,0));
+  font-size:15px;color:#8a5a06}
 .md-ul,.md-ol{margin:4px 0 6px;padding-left:20px}
 .md-ul li,.md-ol li{margin:2px 0;line-height:1.7}
 .md-note{margin:6px 0;padding:7px 10px;background:var(--amber-soft);
