@@ -269,3 +269,7 @@ body{font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
 /* 题眼速查独立卡（与「真题与同类题」同级） */
 .eye-card .qtitle{color:var(--amber)}
 .eye-card h2{border-left:4px solid var(--amber);padding-left:10px}
+
+/* 考点序号 / 条数（按目录有序展示） */
+.eye-pti{display:inline-block;min-width:22px;margin-right:8px;color:var(--amber);font-size:11.5px;font-weight:700;letter-spacing:.5px}
+.eye-ptc{float:right;font-size:11px;font-weight:400;color:var(--sub)}

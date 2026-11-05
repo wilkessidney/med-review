@@ -545,7 +545,7 @@ function renderEye(): void {
   EYECATCH.forEach((ch, ci) => {
     const n = ch.p.reduce((k, p) => k + p.r.length, 0);
     let inner = "";
-    ch.p.forEach((p) => {
+    ch.p.forEach((p, pi) => {
       let rows = "";
       p.r.forEach((r) => {
         /* h>=2 = 答案在该考点真题正确选项中直接出现（强验证）；h=1 = 所在考点有真题 */
@@ -555,7 +555,7 @@ function renderEye(): void {
         }</td></tr>`;
       });
       inner += `<div class="eye-pt" data-pid="${esc(p.id)}">
-        <div class="eye-ptt">${esc(p.t)}</div>
+        <div class="eye-ptt"><span class="eye-pti">${String(pi + 1).padStart(2, "0")}</span>${esc(p.t)}<span class="eye-ptc">${p.r.length} 条</span></div>
         <table class="eye-t"><tbody>${rows}</tbody></table></div>`;
     });
     body += `<section class="eye-ch" id="eye-ch-${esc(ch.id)}">
@@ -655,7 +655,8 @@ function applyEyeFilter(): void {
 }
 
 /* ---------- 渲染：维度卡片 ---------- */
-/* 把 k1_knowledge 末尾的「### 题眼速查」小节拆出来，独立成卡（与「真题与同类题」同级） */
+/* 把 k1_knowledge 末尾的「### 题眼速查」小节剥离：考点页只显示正文，
+   题眼统一由顶栏「⚡ 题眼速查」板块按章→考点有序展示（数据同源，避免两处重复） */
 function splitEye(text: string): { body: string; eye: string } {
   const i = text.indexOf("### 题眼速查");
   if (i < 0) return { body: text, eye: "" };
@@ -872,15 +873,11 @@ function renderBrowse(): void {
   }
   let html = `<div class="card"><h2>${esc(p.title)}</h2>
       <div class="pt-sub">${esc(curSubject().name)} · ${esc(curChapter()!.name)}</div></div>`;
-  /* 执业医师模型：知识卡 + 题眼速查卡 + 题库卡（题库可点击判分，不套折叠组） */
+  /* 执业医师模型：知识卡 + 题库卡；题眼速查已统一收进顶栏「⚡ 题眼速查」板块 */
   if (isExam()) {
     const qs = quizOf(p);
-    const { body, eye } = splitEye(pointValue(p, EXAM_DIMENSIONS[0], App.subject!, p.id));
+    const { body } = splitEye(pointValue(p, EXAM_DIMENSIONS[0], App.subject!, p.id));
     html += dimHTML(EXAM_DIMENSIONS[0], body, false);
-    if (eye) {
-      html += `<div class="card quiz-card eye-card"><h2 class="qtitle">⚡ 题眼速查<span class="qsub">秒选答案</span></h2>
-          <div class="val md">${mdHTML(eye)}</div></div>`;
-    }
     html += `<div class="card quiz-card"><h2 class="qtitle">真题与同类题<span class="qsub">${qs.length} 组</span></h2>
         <div class="quiz" data-pid="${esc(p.id)}">${quizHTML(qs, p.id)}</div></div>`;
     c.innerHTML = html;
@@ -963,13 +960,9 @@ function renderReview(): void {
       <div class="recall">凭记忆回忆：${esc(recallList)}</div></div>`;
   if (revealed) {
     if (isExam()) {
-      /* 两段式模型：知识卡 + 题眼速查卡 + 题库卡（复习时题库只读，答案已在选项里标出） */
-      const { body, eye } = splitEye(pointValue(p, EXAM_DIMENSIONS[0], App.subject!, p.id));
+      /* 两段式模型：知识卡 + 题库卡；题眼速查统一在顶栏板块查看 */
+      const { body } = splitEye(pointValue(p, EXAM_DIMENSIONS[0], App.subject!, p.id));
       html += dimHTML(EXAM_DIMENSIONS[0], body, false);
-      if (eye) {
-        html += `<div class="dim quiz-card eye-card"><div class="body"><div class="lab">⚡ 题眼速查</div>
-            <div class="val md">${mdHTML(eye)}</div></div></div>`;
-      }
       html += `<div class="dim quiz-card"><div class="body"><div class="lab">② 真题与同类题</div>
           <div class="val md"><div class="quiz" data-pid="${esc(p.id)}">${quizHTML(quizOf(p), p.id)}</div></div></div></div>`;
     } else {
