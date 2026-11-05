@@ -390,9 +390,13 @@ function renderSubjects(): void {
     const b = document.createElement("button");
     b.textContent = m.name;
     b.className = App.view === "subject" && m.id === App.subject ? "active" : "";
-    b.onclick = () => void selectSubject(m.id);
+    b.onclick = () => {
+      void selectSubject(m.id);
+      autoCollapseTop();
+    };
     nav.appendChild(b);
   });
+  updateTopSum();
 }
 
 let selectToken = 0;
@@ -412,6 +416,7 @@ async function selectSubject(id: string): Promise<void> {
     }
   }
   App.subject = id;
+  updateTopSum();
   const ch = curSubject().chapters[0];
   const pts = ch ? chPts(ch) : [];
   App.chapterId = ch ? ch.id : null;
@@ -1401,6 +1406,8 @@ function setMode(m: AppState["mode"]): void {
     b.classList.toggle("active", (b as HTMLElement).dataset.mode === m);
   });
   renderMode();
+  updateTopSum();
+  autoCollapseTop();
 }
 
 function renderMode(): void {
@@ -1413,6 +1420,61 @@ function renderMode(): void {
   else if (App.mode === "review") renderReview();
   else if (App.mode === "edit") renderEdit();
   updateStat();
+}
+
+/* ---------- 手机端顶栏：一键收起 / 展开 ---------- */
+const TOPKEY = "medreview.topbar_v1";
+const isMobileTop = (): boolean => window.matchMedia("(max-width:768px)").matches;
+
+/* 实测顶栏高度写入 CSS 变量；侧栏与内容定位随收起/展开自动跟随 */
+function syncTopbarHeight(): void {
+  const bar = document.getElementById("topbar");
+  if (!bar) return;
+  const h = Math.round(bar.getBoundingClientRect().height);
+  if (h > 0) document.documentElement.style.setProperty("--topbar-h", h + "px");
+}
+
+function updateTopSum(): void {
+  const el = document.getElementById("topSum");
+  if (!el) return;
+  const meta = SUBJECT_META.find((m) => m.id === App.subject);
+  const mode = App.mode === "review" ? "复习" : App.mode === "edit" ? "编辑" : "浏览";
+  el.textContent = App.view === "eye" ? "题眼速查" : meta ? meta.name + " · " + mode : mode;
+}
+
+function setTopbarCollapsed(collapsed: boolean, persist = true): void {
+  const bar = document.getElementById("topbar");
+  const btn = document.getElementById("topToggle");
+  if (!bar || !btn) return;
+  const on = collapsed && isMobileTop(); /* 桌面端永不收起 */
+  bar.classList.toggle("collapsed", on);
+  btn.setAttribute("aria-expanded", on ? "false" : "true");
+  btn.setAttribute("aria-label", on ? "展开顶部工具栏" : "收起顶部工具栏");
+  btn.textContent = on ? "☰" : "▲";
+  if (persist) store.set(TOPKEY, collapsed ? "1" : "0");
+  syncTopbarHeight();
+}
+
+/* 选完学科 / 切完模式后自动收起，避免展开态一直占屏 */
+function autoCollapseTop(): void {
+  const bar = document.getElementById("topbar");
+  if (bar && isMobileTop() && !bar.classList.contains("collapsed")) setTopbarCollapsed(true);
+}
+
+function initTopbar(): void {
+  const bar = $("topbar");
+  const btn = $("topToggle");
+  setTopbarCollapsed(store.get(TOPKEY) !== "0", false); /* 首次访问默认收起 */
+  const toggle = (): void => setTopbarCollapsed(!bar.classList.contains("collapsed"));
+  btn.onclick = toggle;
+  $("topSum").onclick = toggle;
+  if (typeof ResizeObserver !== "undefined") new ResizeObserver(syncTopbarHeight).observe(bar);
+  window.addEventListener("resize", () => {
+    setTopbarCollapsed(store.get(TOPKEY) !== "0", false);
+    syncTopbarHeight();
+  });
+  syncTopbarHeight();
+  updateTopSum();
 }
 
 /* ---------- 事件绑定 ---------- */
@@ -1444,6 +1506,7 @@ export async function initApp(): Promise<void> {
   DATA = loadData({} as SubjectsMap);
   STATE = loadState();
   bindGlobal();
+  initTopbar();
   renderSubjects();
   const first = SUBJECT_META[0].id;
   await selectSubject(first);
