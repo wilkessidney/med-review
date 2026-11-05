@@ -62,6 +62,7 @@ export interface QuizQ {
   a?: string; /* A1/A2 答案字母 */
   e?: string; /* A1/A2 解析 */
   s?: QuizSub[]; /* A3/A4/B1 的小问 */
+  src?: string; /* 来源标记：「真题」= 历年真题原题 */
 }
 
 export interface ExamDims {
@@ -70,6 +71,24 @@ export interface ExamDims {
 }
 
 export type ExamDimKey = keyof ExamDims;
+
+/* ---------- 题眼速查（独立板块） ----------
+   每条 = 题干关键词 → 秒选答案；h 为历年真题命中次数（不显年份，只作加权） */
+export interface EyeRow {
+  q: string;
+  a: string;
+  h?: number;
+}
+export interface EyePoint {
+  id: string;
+  t: string;
+  r: EyeRow[];
+}
+export interface EyeChapter {
+  id: string;
+  n: string;
+  p: EyePoint[];
+}
 
 export interface ExamPoint {
   id: string;
