@@ -521,11 +521,15 @@ function quizHTML(qs: QuizQ[], pid: string): string {
   if (!qs.length) return '<div class="md-p" style="color:var(--sub)">本题库正在补题，先看知识点。</div>';
   let total = 0;
   let html = "";
+  const byType: Record<string, number> = {};
   qs.forEach((q, i) => {
     const base = `${pid}#${i}`;
+    const tk = q.t === "A4" ? "A3/A4" : q.t;
+    byType[tk] = (byType[tk] || 0) + 1;
+    let inner = "";
     if (q.t === "B1") {
       total += (q.s || []).length;
-      html += `<div class="qcase"><div class="qtag">B1 共用备选答案</div><div class="qshared">${(q.o || [])
+      inner = `<div class="qcase"><div class="qtag">B1 共用备选答案</div><div class="qshared">${(q.o || [])
         .map((t, k) => `<div><b>${LET[k]}</b>${esc(t)}</div>`)
         .join("")}</div>`;
       (q.s || []).forEach((s, j) => {
@@ -536,25 +540,27 @@ function quizHTML(qs: QuizQ[], pid: string): string {
           if (picked) cls = L === s.a ? "ok" : L === picked ? "bad" : "dim";
           return `<button class="${cls}" data-l="${L}">${L}</button>`;
         }).join("");
-        html += `<div class="qunit${picked ? " done" : ""}" data-k="${esc(key)}" data-a="${s.a}">
+        inner += `<div class="qunit${picked ? " done" : ""}" data-k="${esc(key)}" data-a="${s.a}">
             <div class="qstem">${mdLines(s.q)}</div>
             <div class="qletters">${btns}</div>
             <div class="qexp">${mdInline(s.e)}</div></div>`;
       });
-      html += "</div>";
+      inner += "</div>";
+      html += `<div class="qg" data-t="B1">${inner}</div>`;
       return;
     }
     if (q.t === "A3" || q.t === "A4") {
       total += (q.s || []).length;
-      html += `<div class="qcase"><div class="qtag">${q.t} 病例组题</div><div class="qcasebody">${mdLines(q.q || "")}</div>`;
+      inner = `<div class="qcase"><div class="qtag">${q.t} 病例组题</div><div class="qcasebody">${mdLines(q.q || "")}</div>`;
       (q.s || []).forEach((s, j) => {
-        html += qUnit(`${base}.${j}`, `第${j + 1}问`, s.q, s.o || [], s.a, s.e);
+        inner += qUnit(`${base}.${j}`, `第${j + 1}问`, s.q, s.o || [], s.a, s.e);
       });
-      html += "</div>";
+      inner += "</div>";
+      html += `<div class="qg" data-t="A3/A4">${inner}</div>`;
       return;
     }
     total += 1;
-    html += qUnit(base, q.t, q.q || "", q.o || [], q.a || "", q.e || "");
+    html += `<div class="qg" data-t="${q.t}">${qUnit(base, q.t, q.q || "", q.o || [], q.a || "", q.e || "")}</div>`;
   });
   const done = Object.keys(QANS).filter((k) => k.startsWith(`${pid}#`)).length;
   const right = qs.reduce((n, q, i) => {
@@ -563,9 +569,43 @@ function quizHTML(qs: QuizQ[], pid: string): string {
     }
     return n + (QANS[`${pid}#${i}`] === q.a ? 1 : 0);
   }, 0);
-  return `<div class="qbar">共 ${total} 题<span class="qstat">已答 ${Math.min(done, total)} · 正确 ${right}</span></div>${html}`;
+  const types = ["A1", "A2", "A3/A4", "B1"].filter((t) => byType[t]);
+  const chips =
+    types.length > 1
+      ? `<div class="qchips"><button class="qchip on" data-f="">全部 ${qs.length}</button>${types
+          .map((t) => `<button class="qchip" data-f="${t}">${t} ${byType[t]}</button>`)
+          .join("")}<button class="qreset" title="清空本考点的作答记录">重做</button></div>`
+      : "";
+  return `<div class="qbar"><span>共 ${total} 题</span><span class="qstat">已答 ${Math.min(
+    done,
+    total
+  )} · 正确 ${right}</span></div>${chips}${html}`;
 }
 function bindQuiz(root: HTMLElement): void {
+  root.querySelectorAll(".qchip").forEach((c) => {
+    (c as HTMLElement).onclick = () => {
+      const f = c.getAttribute("data-f") || "";
+      root.querySelectorAll(".qchip").forEach((x) => x.classList.toggle("on", x === c));
+      root.querySelectorAll(".qg").forEach((g) => {
+        (g as HTMLElement).hidden = !!f && g.getAttribute("data-t") !== f;
+      });
+    };
+  });
+  const reset = root.querySelector(".qreset") as HTMLElement | null;
+  if (reset)
+    reset.onclick = () => {
+      const pid = root.querySelector(".quiz")?.getAttribute("data-pid") || "";
+      Object.keys(QANS).forEach((k) => {
+        if (k.startsWith(`${pid}#`)) delete QANS[k];
+      });
+      qsave();
+      root.querySelectorAll(".qunit").forEach((u) => {
+        u.classList.remove("done", "hit", "miss");
+        u.querySelectorAll("button[data-l]").forEach((b) => b.classList.remove("ok", "bad", "dim"));
+      });
+      const st = root.querySelector(".qstat");
+      if (st) st.textContent = "已答 0 · 正确 0";
+    };
   root.querySelectorAll(".qunit").forEach((u) => {
     const key = u.getAttribute("data-k");
     const ans = u.getAttribute("data-a");
