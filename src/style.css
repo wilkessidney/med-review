@@ -265,3 +265,7 @@ body{font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
   background:var(--green-soft);color:var(--green);font-weight:700;vertical-align:1px}
 .qtag .qsrc{margin-right:0;margin-left:6px}
 .eye-hk.weak{background:transparent;color:var(--line);padding:0 2px;font-size:8px}
+
+/* 题眼速查独立卡（与「真题与同类题」同级） */
+.eye-card .qtitle{color:var(--amber)}
+.eye-card h2{border-left:4px solid var(--amber);padding-left:10px}

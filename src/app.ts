@@ -655,6 +655,13 @@ function applyEyeFilter(): void {
 }
 
 /* ---------- 渲染：维度卡片 ---------- */
+/* 把 k1_knowledge 末尾的「### 题眼速查」小节拆出来，独立成卡（与「真题与同类题」同级） */
+function splitEye(text: string): { body: string; eye: string } {
+  const i = text.indexOf("### 题眼速查");
+  if (i < 0) return { body: text, eye: "" };
+  return { body: text.slice(0, i).trim(), eye: text.slice(i + "### 题眼速查".length).trim() };
+}
+
 function dimHTML(d: Meta, value: string, isState: boolean): string {
   const cls = isState ? "num s" : "num";
   const lab = isState ? "lab s" : "lab";
@@ -865,10 +872,15 @@ function renderBrowse(): void {
   }
   let html = `<div class="card"><h2>${esc(p.title)}</h2>
       <div class="pt-sub">${esc(curSubject().name)} · ${esc(curChapter()!.name)}</div></div>`;
-  /* 执业医师模型：知识一张卡 + 题库一张卡（题库可点击判分，不套折叠组） */
+  /* 执业医师模型：知识卡 + 题眼速查卡 + 题库卡（题库可点击判分，不套折叠组） */
   if (isExam()) {
     const qs = quizOf(p);
-    html += dimHTML(EXAM_DIMENSIONS[0], pointValue(p, EXAM_DIMENSIONS[0], App.subject!, p.id), false);
+    const { body, eye } = splitEye(pointValue(p, EXAM_DIMENSIONS[0], App.subject!, p.id));
+    html += dimHTML(EXAM_DIMENSIONS[0], body, false);
+    if (eye) {
+      html += `<div class="card quiz-card eye-card"><h2 class="qtitle">⚡ 题眼速查<span class="qsub">秒选答案</span></h2>
+          <div class="val md">${mdHTML(eye)}</div></div>`;
+    }
     html += `<div class="card quiz-card"><h2 class="qtitle">真题与同类题<span class="qsub">${qs.length} 组</span></h2>
         <div class="quiz" data-pid="${esc(p.id)}">${quizHTML(qs, p.id)}</div></div>`;
     c.innerHTML = html;
@@ -951,8 +963,13 @@ function renderReview(): void {
       <div class="recall">凭记忆回忆：${esc(recallList)}</div></div>`;
   if (revealed) {
     if (isExam()) {
-      /* 两段式模型：知识卡 + 题库卡（复习时题库只读，答案已在选项里标出） */
-      html += dimHTML(EXAM_DIMENSIONS[0], pointValue(p, EXAM_DIMENSIONS[0], App.subject!, p.id), false);
+      /* 两段式模型：知识卡 + 题眼速查卡 + 题库卡（复习时题库只读，答案已在选项里标出） */
+      const { body, eye } = splitEye(pointValue(p, EXAM_DIMENSIONS[0], App.subject!, p.id));
+      html += dimHTML(EXAM_DIMENSIONS[0], body, false);
+      if (eye) {
+        html += `<div class="dim quiz-card eye-card"><div class="body"><div class="lab">⚡ 题眼速查</div>
+            <div class="val md">${mdHTML(eye)}</div></div></div>`;
+      }
       html += `<div class="dim quiz-card"><div class="body"><div class="lab">② 真题与同类题</div>
           <div class="val md"><div class="quiz" data-pid="${esc(p.id)}">${quizHTML(quizOf(p), p.id)}</div></div></div></div>`;
     } else {
