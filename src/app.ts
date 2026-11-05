@@ -655,12 +655,54 @@ function applyEyeFilter(): void {
 }
 
 /* ---------- 渲染：维度卡片 ---------- */
-/* 把 k1_knowledge 末尾的「### 题眼速查」小节剥离：考点页只显示正文，
-   题眼统一由顶栏「⚡ 题眼速查」板块按章→考点有序展示（数据同源，避免两处重复） */
+/* 把 k1_knowledge 末尾的「### 题眼速查」小节剥离：讲义只显示正文，
+   题眼作为考点页三块结构中的第 ② 块单独成卡（① 必背知识 / ② 题眼速查 / ③ 真题与同类题）。
+   卡片数据取已全局查重、带真题命中的 eyecatch.ts，按考点 id 定位，避免与讲义重复展示。 */
 function splitEye(text: string): { body: string; eye: string } {
   const i = text.indexOf("### 题眼速查");
   if (i < 0) return { body: text, eye: "" };
   return { body: text.slice(0, i).trim(), eye: text.slice(i + "### 题眼速查".length).trim() };
+}
+
+function eyeRowsOf(pid: string): EyeChapter["p"][number]["r"] {
+  for (const ch of EYECATCH) {
+    for (const pt of ch.p) if (pt.id === pid) return pt.r;
+  }
+  return [];
+}
+
+function eyeInlineHTML(pid: string): string {
+  if (!EYECATCH.length) return '<div class="empty-tip">题眼速查加载中…</div>';
+  const rows = eyeRowsOf(pid);
+  if (!rows.length) return '<div class="empty-tip">本考点暂无题眼条目。</div>';
+  const body = rows
+    .map((r) => {
+      const strong = (r.h || 0) >= 2;
+      return `<tr${r.h ? ' class="hk"' : ""}><td class="q">${esc(r.q)}</td><td class="a">${esc(r.a)}${
+        strong
+          ? '<i class="eye-hk" title="真题正确选项直接对应该答案">真</i>'
+          : r.h
+            ? '<i class="eye-hk weak" title="该考点有历年真题"></i>'
+            : ""
+      }</td></tr>`;
+    })
+    .join("");
+  return `<table class="eye-t"><tbody>${body}</tbody></table>`;
+}
+
+function eyeInlineCard(pid: string): string {
+  const n = eyeRowsOf(pid).length;
+  return `<div class="card eye-card"><h2 class="qtitle">② 题眼速查<span class="qsub">${n ? `${n} 条` : "…"}</span></h2>
+    <div class="eye-inline" data-pid="${esc(pid)}">${eyeInlineHTML(pid)}</div></div>`;
+}
+
+function fillEyeInline(root: HTMLElement): void {
+  root.querySelectorAll<HTMLElement>(".eye-inline[data-pid]").forEach((el) => {
+    const pid = el.dataset.pid || "";
+    el.innerHTML = eyeInlineHTML(pid);
+    const sub = el.closest(".eye-card")?.querySelector(".qsub");
+    if (sub) sub.textContent = `${eyeRowsOf(pid).length} 条`;
+  });
 }
 
 function dimHTML(d: Meta, value: string, isState: boolean): string {
@@ -873,15 +915,17 @@ function renderBrowse(): void {
   }
   let html = `<div class="card"><h2>${esc(p.title)}</h2>
       <div class="pt-sub">${esc(curSubject().name)} · ${esc(curChapter()!.name)}</div></div>`;
-  /* 执业医师模型：知识卡 + 题库卡；题眼速查已统一收进顶栏「⚡ 题眼速查」板块 */
+  /* 执业医师模型：① 必背知识 → ② 题眼速查 → ③ 真题与同类题 */
   if (isExam()) {
     const qs = quizOf(p);
     const { body } = splitEye(pointValue(p, EXAM_DIMENSIONS[0], App.subject!, p.id));
     html += dimHTML(EXAM_DIMENSIONS[0], body, false);
-    html += `<div class="card quiz-card"><h2 class="qtitle">真题与同类题<span class="qsub">${qs.length} 组</span></h2>
+    html += eyeInlineCard(p.id);
+    html += `<div class="card quiz-card"><h2 class="qtitle">③ 真题与同类题<span class="qsub">${qs.length} 组</span></h2>
         <div class="quiz" data-pid="${esc(p.id)}">${quizHTML(qs, p.id)}</div></div>`;
     c.innerHTML = html;
     bindQuiz(c);
+    if (!EYECATCH.length) void ensureEye().then(() => fillEyeInline(c));
     return;
   }
   curGroups().forEach((g) => {
@@ -960,10 +1004,12 @@ function renderReview(): void {
       <div class="recall">凭记忆回忆：${esc(recallList)}</div></div>`;
   if (revealed) {
     if (isExam()) {
-      /* 两段式模型：知识卡 + 题库卡；题眼速查统一在顶栏板块查看 */
+      /* ① 必背知识 → ② 题眼速查 → ③ 真题与同类题 */
       const { body } = splitEye(pointValue(p, EXAM_DIMENSIONS[0], App.subject!, p.id));
       html += dimHTML(EXAM_DIMENSIONS[0], body, false);
-      html += `<div class="dim quiz-card"><div class="body"><div class="lab">② 真题与同类题</div>
+      html += `<div class="dim eye-card"><div class="body"><div class="lab">② 题眼速查</div>
+          <div class="val md"><div class="eye-inline" data-pid="${esc(p.id)}">${eyeInlineHTML(p.id)}</div></div></div></div>`;
+      html += `<div class="dim quiz-card"><div class="body"><div class="lab">③ 真题与同类题</div>
           <div class="val md"><div class="quiz" data-pid="${esc(p.id)}">${quizHTML(quizOf(p), p.id)}</div></div></div></div>`;
     } else {
       curGroups().forEach((g) => {
@@ -988,6 +1034,9 @@ function renderReview(): void {
   html += "</div>";
   c.innerHTML = html;
   bindQuiz(c);
+  if (!EYECATCH.length && c.querySelector(".eye-inline")) {
+    void ensureEye().then(() => fillEyeInline(c));
+  }
 
   c.querySelectorAll(".chips button").forEach((b) => {
     (b as HTMLElement).onclick = () => {
@@ -1375,22 +1424,6 @@ function bindGlobal(): void {
     (b as HTMLElement).onclick = () => setMode(((b as HTMLElement).dataset.mode ?? "browse") as AppState["mode"]);
   });
   $("mbMenu").onclick = () => $("sidebar").classList.toggle("open");
-  $("eyeTab").onclick = () => {
-    App.view = "eye";
-    App.mode = "browse";
-    if (!EYECATCH.length) $("content").innerHTML = '<div class="empty-tip">正在加载题眼速查…</div>';
-    document.querySelectorAll(".mode").forEach((b) => {
-      b.classList.toggle("active", (b as HTMLElement).dataset.mode === "browse");
-    });
-    void ensureEye().then(() => {
-      if (App.view !== "eye") return;
-      renderTree();
-      renderMode();
-    });
-    renderSubjects();
-    window.scrollTo({ top: 0 });
-    if (window.innerWidth <= 768) $("sidebar").classList.remove("open");
-  };
   $("sideToggle").onclick = () => $("sidebar").classList.toggle("open");
   $("btnExport").onclick = exportProgress;
   $("btnImport").onclick = () => {
@@ -1414,6 +1447,4 @@ export async function initApp(): Promise<void> {
   renderSubjects();
   const first = SUBJECT_META[0].id;
   await selectSubject(first);
-  /* 后台预取题眼数据 */
-  void ensureEye();
 }
