@@ -524,7 +524,7 @@ function quizHTML(qs: QuizQ[], pid: string): string {
   const byType: Record<string, number> = {};
   qs.forEach((q, i) => {
     const base = `${pid}#${i}`;
-    const tk = q.t === "A4" ? "A3/A4" : q.t;
+    const tk = q.t === "A3" || q.t === "A4" ? "A3/A4" : q.t;
     byType[tk] = (byType[tk] || 0) + 1;
     let inner = "";
     if (q.t === "B1") {
