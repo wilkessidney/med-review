@@ -72,12 +72,11 @@ export interface ExamDims {
 
 export type ExamDimKey = keyof ExamDims;
 
-/* ---------- 题眼速查（独立板块） ----------
-   每条 = 题干关键词 → 秒选答案；h 为历年真题命中次数（不显年份，只作加权） */
+/* ---------- 题眼速查 ----------
+   每条 = 题干判分词 → 秒选答案，只有 q / a 两个字段 */
 export interface EyeRow {
   q: string;
   a: string;
-  h?: number;
 }
 export interface EyePoint {
   id: string;

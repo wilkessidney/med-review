@@ -384,8 +384,6 @@ function curPoint(): AnyPoint | null {
 function renderSubjects(): void {
   const nav = $("subjectTabs");
   nav.innerHTML = "";
-  const eyeTab = document.getElementById("eyeTab");
-  if (eyeTab) eyeTab.classList.toggle("active", App.view === "eye");
   SUBJECT_META.forEach((m) => {
     const b = document.createElement("button");
     b.textContent = m.name;
@@ -430,10 +428,6 @@ async function selectSubject(id: string): Promise<void> {
 
 /* ---------- 渲染：侧边树 ---------- */
 function renderTree(): void {
-  if (App.view === "eye") {
-    renderEyeTree();
-    return;
-  }
   const tree = $("tree");
   tree.innerHTML = "";
   curSubject().chapters.forEach((ch) => {
@@ -496,168 +490,18 @@ function renderTree(): void {
   $("sideTitle").textContent = curSubject().name;
 }
 
-/* ---------- 渲染：题眼速查（独立大板块） ---------- */
-interface EyeRowRef {
-  el: HTMLTableRowElement;
-  s: string;
-  h: number;
-  pid: string;
-}
-let EYE_ROWS: EyeRowRef[] = [];
-let EYE_PTS: { el: HTMLElement; pid: string }[] = [];
-let EYE_CHS: { el: HTMLElement; cid: string }[] = [];
-let EYE_MODE: "all" | "hit" = "all";
-let EYE_Q = "";
-
-let EYE_TOTAL = 0;
-let EYE_PTN = 0;
-let EYE_HIT = 0;
+/* ---------- 题眼速查：按需加载 ---------- */
 let eyeLoading: Promise<void> | null = null;
 async function ensureEye(): Promise<void> {
   if (EYECATCH.length) return;
   if (!eyeLoading) {
     eyeLoading = import("./data/eyecatch").then((m) => {
       EYECATCH = m.EYECATCH;
-      EYE_TOTAL = EYECATCH.reduce((n, c) => n + c.p.reduce((k, p) => k + p.r.length, 0), 0);
-      EYE_PTN = EYECATCH.reduce((n, c) => n + c.p.length, 0);
-      EYE_HIT = EYECATCH.reduce((n, c) => n + c.p.reduce((k, p) => k + p.r.filter((r) => r.h).length, 0), 0);
     });
   }
   await eyeLoading;
 }
 
-function renderEyeTree(): void {
-  const tree = $("tree");
-  tree.innerHTML = "";
-  $("sideTitle").textContent = "题眼速查 · 分章目录";
-  EYECATCH.forEach((c) => {
-    const n = c.p.reduce((k, p) => k + p.r.length, 0);
-    const el = document.createElement("div");
-    el.className = "point eye-nav";
-    el.innerHTML = `<span class="eye-nav-n">${esc(c.n.replace(/^[一二三四五六七八九十]+、/, ""))}</span><span class="cnt">${n}</span>`;
-    el.onclick = () => {
-      const t = document.getElementById("eye-ch-" + c.id);
-      if (t) t.scrollIntoView({ behavior: "smooth", block: "start" });
-      if (window.innerWidth <= 768) $("sidebar").classList.remove("open");
-    };
-    tree.appendChild(el);
-  });
-}
-
-function renderEye(): void {
-  const c = $("content");
-  let body = "";
-  EYECATCH.forEach((ch, ci) => {
-    const n = ch.p.reduce((k, p) => k + p.r.length, 0);
-    let inner = "";
-    ch.p.forEach((p, pi) => {
-      let rows = "";
-      p.r.forEach((r) => {
-        /* h>=2 = 答案在该考点真题正确选项中直接出现（强验证）；h=1 = 所在考点有真题 */
-        const strong = (r.h || 0) >= 2;
-        rows += `<tr${r.h ? ' class="hk"' : ""}><td class="q">${esc(r.q)}</td><td class="a">${esc(r.a)}${
-          strong ? '<i class="eye-hk" title="真题正确选项直接对应该答案">真</i>' : r.h ? '<i class="eye-hk weak" title="该考点有历年真题"></i>' : ""
-        }</td></tr>`;
-      });
-      inner += `<div class="eye-pt" data-pid="${esc(p.id)}">
-        <div class="eye-ptt"><span class="eye-pti">${String(pi + 1).padStart(2, "0")}</span>${esc(p.t)}<span class="eye-ptc">${p.r.length} 条</span></div>
-        <table class="eye-t"><tbody>${rows}</tbody></table></div>`;
-    });
-    body += `<section class="eye-ch" id="eye-ch-${esc(ch.id)}">
-      <div class="eye-chhead"><span class="eye-num">${String(ci + 1).padStart(2, "0")}</span>
-        <h3>${esc(ch.n)}</h3><span class="eye-n">${ch.p.length} 考点 · ${n} 条</span></div>${inner}</section>`;
-  });
-
-  c.innerHTML = `<div class="eye-hero">
-      <div class="eye-hero-main">
-        <h2>⚡ 题眼速查</h2>
-        <div class="eye-sub">执业医师历年真题考过的「题干关键词 → 秒选答案」，全站 ${EYE_PTN} 个考点、${EYE_TOTAL} 条，考前 30 分钟只看这一页。</div>
-      </div>
-      <div class="eye-kpis">
-        <div class="kpi"><b>${EYE_TOTAL}</b><span>题眼</span></div>
-        <div class="kpi"><b>${EYE_PTN}</b><span>考点</span></div>
-        <div class="kpi"><b>${EYECATCH.length}</b><span>章</span></div>
-        <div class="kpi hi"><b>${EYE_HIT}</b><span>真题命中</span></div>
-      </div>
-    </div>
-    <div class="eye-bar">
-      <input id="eyeSearch" type="search" placeholder="搜关键词 / 病名 / 数字 / 答案，例如：首选、金标准、血尿、pH" value="${esc(EYE_Q)}">
-      <div class="eye-chips">
-        <button class="eye-chip${EYE_MODE === "all" ? " on" : ""}" data-f="all">全部 ${EYE_TOTAL}</button>
-        <button class="eye-chip${EYE_MODE === "hit" ? " on" : ""}" data-f="hit">真题考过 ${EYE_HIT}</button>
-      </div>
-      <span class="eye-shown" id="eyeShown"></span>
-    </div>
-    <div id="eyeBody">${body}</div>`;
-  bindEye(c);
-}
-
-function bindEye(root: HTMLElement): void {
-  EYE_ROWS = [];
-  EYE_PTS = [];
-  EYE_CHS = [];
-  root.querySelectorAll(".eye-ch").forEach((el) => {
-    EYE_CHS.push({ el: el as HTMLElement, cid: el.id.replace("eye-ch-", "") });
-  });
-  root.querySelectorAll(".eye-pt").forEach((el) => {
-    const pid = el.getAttribute("data-pid") || "";
-    EYE_PTS.push({ el: el as HTMLElement, pid });
-    el.querySelectorAll("tr").forEach((tr) => {
-      const q = tr.querySelector(".q")?.textContent || "";
-      const a = tr.querySelector(".a")?.textContent || "";
-      EYE_ROWS.push({
-        el: tr as HTMLTableRowElement,
-        s: (q + " " + a).toLowerCase(),
-        h: tr.classList.contains("hk") ? 1 : 0,
-        pid,
-      });
-    });
-  });
-  const input = document.getElementById("eyeSearch") as HTMLInputElement | null;
-  if (input) {
-    let timer = 0;
-    input.oninput = () => {
-      window.clearTimeout(timer);
-      timer = window.setTimeout(() => {
-        EYE_Q = input.value;
-        applyEyeFilter();
-      }, 120);
-    };
-  }
-  root.querySelectorAll(".eye-chip").forEach((b) => {
-    (b as HTMLElement).onclick = () => {
-      EYE_MODE = ((b as HTMLElement).dataset.f as "all" | "hit") || "all";
-      root.querySelectorAll(".eye-chip").forEach((x) => x.classList.toggle("on", x === b));
-      applyEyeFilter();
-    };
-  });
-  applyEyeFilter();
-}
-
-function applyEyeFilter(): void {
-  const q = EYE_Q.trim().toLowerCase();
-  const byPt: Record<string, number> = {};
-  let shown = 0;
-  for (const r of EYE_ROWS) {
-    const ok = (!q || r.s.indexOf(q) >= 0) && (EYE_MODE === "all" || r.h > 0);
-    r.el.hidden = !ok;
-    if (ok) {
-      shown++;
-      byPt[r.pid] = (byPt[r.pid] || 0) + 1;
-    }
-  }
-  for (const p of EYE_PTS) p.el.hidden = !byPt[p.pid];
-  for (const ch of EYE_CHS) {
-    const sec = ch.el;
-    let any = false;
-    sec.querySelectorAll(".eye-pt").forEach((p) => {
-      if (!(p as HTMLElement).hidden) any = true;
-    });
-    sec.hidden = !any;
-  }
-  const s = document.getElementById("eyeShown");
-  if (s) s.textContent = shown === EYE_TOTAL ? "" : `筛出 ${shown} 条`;
-}
 
 /* ---------- 渲染：维度卡片 ---------- */
 /* 把 k1_knowledge 末尾的「### 题眼速查」小节剥离：讲义只显示正文，
@@ -681,16 +525,7 @@ function eyeInlineHTML(pid: string): string {
   const rows = eyeRowsOf(pid);
   if (!rows.length) return '<div class="empty-tip">本考点暂无题眼条目。</div>';
   const body = rows
-    .map((r) => {
-      const strong = (r.h || 0) >= 2;
-      return `<tr${r.h ? ' class="hk"' : ""}><td class="q">${esc(r.q)}</td><td class="a">${esc(r.a)}${
-        strong
-          ? '<i class="eye-hk" title="真题正确选项直接对应该答案">真</i>'
-          : r.h
-            ? '<i class="eye-hk weak" title="该考点有历年真题"></i>'
-            : ""
-      }</td></tr>`;
-    })
+    .map((r) => `<tr><td class="q">${esc(r.q)}</td><td class="a">${esc(r.a)}</td></tr>`)
     .join("");
   return `<table class="eye-t"><tbody>${body}</tbody></table>`;
 }
@@ -1388,11 +1223,6 @@ function setMode(m: AppState["mode"]): void {
     alert("编辑模式仅在电脑端可用，手机端仅做复习。");
     return;
   }
-  if (App.view === "eye") {
-    App.view = "subject";
-    renderSubjects();
-    renderTree();
-  }
   App.mode = m;
   App._revealed = false;
   if (m === "review") {
@@ -1411,11 +1241,6 @@ function setMode(m: AppState["mode"]): void {
 }
 
 function renderMode(): void {
-  if (App.view === "eye") {
-    renderEye();
-    $("statBadge").textContent = "";
-    return;
-  }
   if (App.mode === "browse") renderBrowse();
   else if (App.mode === "review") renderReview();
   else if (App.mode === "edit") renderEdit();
